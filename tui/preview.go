@@ -171,9 +171,7 @@ type rowLayout struct {
 	titleWidth                           int
 }
 
-func sessionRowLayout(it ListItem, w int) rowLayout {
-	// " ● source  dirname  title.......  MM/DD"
-	//  1+1+1+6+2 = 11 prefix | 2+dirW = dir col | flex title | 1+5 date
+func (m *Model) sessionRowLayout(it ListItem, w int) rowLayout {
 	const dirWidth = 12
 	const dateCols = 6
 
@@ -189,9 +187,15 @@ func sessionRowLayout(it ListItem, w int) rowLayout {
 	r.date = it.UpdatedAt().Format("1/02")
 	r.title = it.Title()
 
-	dir := filepath.Base(it.Path)
-	if dir == "." || dir == "/" {
-		dir = ""
+	dir := ""
+	if m.config != nil {
+		dir = m.config.DirAlias(it.Path)
+	}
+	if dir == "" {
+		dir = filepath.Base(it.Path)
+		if dir == "." || dir == "/" {
+			dir = ""
+		}
 	}
 	r.dirName = truncate(dir, dirWidth)
 
@@ -219,7 +223,7 @@ func (m *Model) renderRowPlain(it ListItem, w int) string {
 	case KindWorkspace:
 		return fmt.Sprintf(" ★ %s  %s", truncate(it.Alias, 14), shortenPath(it.Path, w-18))
 	case KindSession:
-		r := sessionRowLayout(it, w)
+		r := m.sessionRowLayout(it, w)
 		dir := padToWidth(r.dirName, 12)
 		title := padToWidth(truncate(r.title, r.titleWidth), r.titleWidth)
 		return fmt.Sprintf(" %s %s %s%s %s %s", r.ind, r.src, r.star, dir, title, r.date)
@@ -235,7 +239,7 @@ func (m *Model) renderRowStyled(it ListItem, w int) string {
 		path := dimStyle.Render(shortenPath(it.Path, w-18))
 		return fmt.Sprintf(" %s %s  %s", icon, alias, path)
 	case KindSession:
-		r := sessionRowLayout(it, w)
+		r := m.sessionRowLayout(it, w)
 
 		src := sourceClaudeStyle.Render("claude")
 		if it.Source() == "codex" {

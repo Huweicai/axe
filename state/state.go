@@ -12,9 +12,24 @@ type Workspace struct {
 }
 
 type Config struct {
-	DefaultTool      string      `json:"default_tool"`
-	Theme            string      `json:"theme,omitempty"`
-	PinnedWorkspaces []Workspace `json:"pinned_workspaces"`
+	DefaultTool      string            `json:"default_tool"`
+	Theme            string            `json:"theme,omitempty"`
+	DirAliases       map[string]string `json:"dir_aliases,omitempty"`
+	PinnedWorkspaces []Workspace       `json:"pinned_workspaces"`
+}
+
+func (c *Config) DirAlias(path string) string {
+	if c.DirAliases != nil {
+		if alias, ok := c.DirAliases[path]; ok {
+			return alias
+		}
+	}
+	for _, ws := range c.PinnedWorkspaces {
+		if ws.Path == path {
+			return ws.Alias
+		}
+	}
+	return ""
 }
 
 type SessionState struct {
