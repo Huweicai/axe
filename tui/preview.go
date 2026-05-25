@@ -165,28 +165,46 @@ func (m *Model) renderListRow(idx int, listWidth int, isCurrent bool) string {
 	return normalRowStyle.Width(listWidth).Render(m.renderRowStyled(it, contentWidth))
 }
 
+func sessionRowLayout(it ListItem, w int) (prefix, titleStr, date string, titleWidth int) {
+	// Fixed layout: " ● source  " (12 cols) | title (flex) | " MM/DD" (6 cols)
+	const prefixCols = 12
+	const dateCols = 6
+
+	ind := " "
+	if it.Running {
+		ind = "●"
+	}
+	star := ""
+	starCols := 0
+	if it.Starred {
+		star = "★ "
+		starCols = 3
+	}
+	prefix = fmt.Sprintf(" %s %-6s %s", ind, it.Source(), star)
+	date = it.UpdatedAt().Format("1/02")
+	titleWidth = w - prefixCols - dateCols - starCols
+	if titleWidth < 8 {
+		titleWidth = 8
+	}
+	titleStr = it.Title()
+	return
+}
+
+func padToWidth(s string, targetWidth int) string {
+	vis := lipgloss.Width(s)
+	if vis >= targetWidth {
+		return s
+	}
+	return s + strings.Repeat(" ", targetWidth-vis)
+}
+
 func (m *Model) renderRowPlain(it ListItem, w int) string {
 	switch it.Kind {
 	case KindWorkspace:
 		return fmt.Sprintf(" ★ %s  %s", truncate(it.Alias, 14), shortenPath(it.Path, w-18))
 	case KindSession:
-		src := fmt.Sprintf("%-6s", it.Source())
-		star := ""
-		if it.Starred {
-			star = "★ "
-		}
-		ind := " "
-		if it.Running {
-			ind = "●"
-		}
-		titleMax := w - 22
-		if it.Starred {
-			titleMax -= 3
-		}
-		if titleMax < 8 {
-			titleMax = 8
-		}
-		return fmt.Sprintf(" %s %s  %s%s  %s", ind, src, star, truncate(it.Title(), titleMax), it.UpdatedAt().Format("1/02"))
+		prefix, title, date, titleW := sessionRowLayout(it, w)
+		return prefix + padToWidth(truncate(title, titleW), titleW) + " " + date
 	}
 	return ""
 }
@@ -199,6 +217,8 @@ func (m *Model) renderRowStyled(it ListItem, w int) string {
 		path := dimStyle.Render(shortenPath(it.Path, w-18))
 		return fmt.Sprintf(" %s %s  %s", icon, alias, path)
 	case KindSession:
+		_, title, dateStr, titleW := sessionRowLayout(it, w)
+
 		src := sourceClaudeStyle.Render("claude")
 		if it.Source() == "codex" {
 			src = sourceCodexStyle.Render("codex ")
@@ -207,20 +227,14 @@ func (m *Model) renderRowStyled(it ListItem, w int) string {
 		if it.Starred {
 			star = starStyle.Render("★") + " "
 		}
-		titleMax := w - 22
-		if it.Starred {
-			titleMax -= 3
-		}
-		if titleMax < 8 {
-			titleMax = 8
-		}
-		title := truncate(it.Title(), titleMax)
-		date := dateStyle.Render(it.UpdatedAt().Format("1/02"))
 		ind := " "
 		if it.Running {
 			ind = runningStyle.Render("●")
 		}
-		return fmt.Sprintf(" %s %s  %s%s  %s", ind, src, star, title, date)
+
+		styledTitle := padToWidth(truncate(title, titleW), titleW)
+		date := dateStyle.Render(dateStr)
+		return fmt.Sprintf(" %s %s %s%s %s", ind, src, star, styledTitle, date)
 	}
 	return ""
 }
