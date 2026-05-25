@@ -10,6 +10,7 @@ import (
 	"github.com/Huweicai/axe/state"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type sourceFilter int
@@ -419,6 +420,75 @@ func (m Model) providerResumeCommand(s *provider.Session) []string {
 
 // View implements tea.Model.
 func (m Model) View() string {
-	// Minimal view — full rendering added in commit 2
-	return "axe"
+	if m.width == 0 || m.height == 0 {
+		return ""
+	}
+
+	header := m.renderHeader(m.width)
+	statusBar := m.renderStatusBar(m.width)
+
+	// Split: 55% list, 45% preview
+	listWidth := m.width * 55 / 100
+	previewWidth := m.width - listWidth
+	bodyHeight := m.height - 3 // header + status bar + separator
+
+	// Build list rows
+	var listLines []string
+	if m.grouped {
+		listLines = m.renderGroupedList(listWidth, bodyHeight)
+	} else {
+		for i, fi := range m.filtered {
+			if i >= bodyHeight {
+				break
+			}
+			listLines = append(listLines, m.renderListRow(fi, listWidth, i == m.cursor))
+		}
+	}
+	// Pad list to bodyHeight
+	for len(listLines) < bodyHeight {
+		listLines = append(listLines, "")
+	}
+
+	listPane := strings.Join(listLines, "\n")
+	previewPane := m.renderPreview(previewWidth)
+
+	body := lipgloss.JoinHorizontal(lipgloss.Top, listPane, previewPane)
+
+	return header + "\n" + body + "\n" + statusBar
+}
+
+// renderGroupedList renders sessions grouped by directory with headers.
+func (m *Model) renderGroupedList(listWidth, maxRows int) []string {
+	var lines []string
+	lastDir := ""
+	row := 0
+
+	for i, fi := range m.filtered {
+		if row >= maxRows {
+			break
+		}
+		it := m.items[fi]
+
+		if it.Kind == KindSession && it.Path != lastDir {
+			// Directory header
+			if row > 0 {
+				lines = append(lines, "")
+				row++
+				if row >= maxRows {
+					break
+				}
+			}
+			dirLabel := dimStyle.Render("── " + shortenPath(it.Path, listWidth-5) + " ──")
+			lines = append(lines, dirLabel)
+			row++
+			lastDir = it.Path
+			if row >= maxRows {
+				break
+			}
+		}
+
+		lines = append(lines, m.renderListRow(fi, listWidth, i == m.cursor))
+		row++
+	}
+	return lines
 }
