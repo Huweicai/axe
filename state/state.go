@@ -13,6 +13,7 @@ type Workspace struct {
 
 type Config struct {
 	DefaultTool      string      `json:"default_tool"`
+	Theme            string      `json:"theme,omitempty"`
 	PinnedWorkspaces []Workspace `json:"pinned_workspaces"`
 }
 

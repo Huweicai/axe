@@ -159,26 +159,55 @@ func (m *Model) renderListRow(idx int, listWidth int, isCurrent bool) string {
 	it := m.items[idx]
 	contentWidth := listWidth - 4
 
-	var row string
+	if isCurrent {
+		return selectedRowStyle.Width(listWidth).Render(m.renderRowPlain(it, contentWidth))
+	}
+	return normalRowStyle.Width(listWidth).Render(m.renderRowStyled(it, contentWidth))
+}
+
+func (m *Model) renderRowPlain(it ListItem, w int) string {
+	switch it.Kind {
+	case KindWorkspace:
+		return fmt.Sprintf(" ★ %s  %s", truncate(it.Alias, 14), shortenPath(it.Path, w-18))
+	case KindSession:
+		src := fmt.Sprintf("%-6s", it.Source())
+		star := ""
+		if it.Starred {
+			star = "★ "
+		}
+		ind := " "
+		if it.Running {
+			ind = "●"
+		}
+		titleMax := w - 22
+		if it.Starred {
+			titleMax -= 3
+		}
+		if titleMax < 8 {
+			titleMax = 8
+		}
+		return fmt.Sprintf(" %s %s  %s%s  %s", ind, src, star, truncate(it.Title(), titleMax), it.UpdatedAt().Format("1/02"))
+	}
+	return ""
+}
+
+func (m *Model) renderRowStyled(it ListItem, w int) string {
 	switch it.Kind {
 	case KindWorkspace:
 		icon := workspaceIconStyle.Render("★")
 		alias := workspaceStyle.Render(truncate(it.Alias, 14))
-		path := dimStyle.Render(shortenPath(it.Path, contentWidth-18))
-		row = fmt.Sprintf(" %s %s  %s", icon, alias, path)
-
+		path := dimStyle.Render(shortenPath(it.Path, w-18))
+		return fmt.Sprintf(" %s %s  %s", icon, alias, path)
 	case KindSession:
 		src := sourceClaudeStyle.Render("claude")
 		if it.Source() == "codex" {
 			src = sourceCodexStyle.Render("codex ")
 		}
-
-		starPrefix := ""
+		star := ""
 		if it.Starred {
-			starPrefix = starStyle.Render("★") + " "
+			star = starStyle.Render("★") + " "
 		}
-
-		titleMax := contentWidth - 22
+		titleMax := w - 22
 		if it.Starred {
 			titleMax -= 3
 		}
@@ -187,17 +216,11 @@ func (m *Model) renderListRow(idx int, listWidth int, isCurrent bool) string {
 		}
 		title := truncate(it.Title(), titleMax)
 		date := dateStyle.Render(it.UpdatedAt().Format("1/02"))
-
-		indicator := " "
+		ind := " "
 		if it.Running {
-			indicator = runningStyle.Render("●")
+			ind = runningStyle.Render("●")
 		}
-
-		row = fmt.Sprintf(" %s %s  %s%s  %s", indicator, src, starPrefix, title, date)
+		return fmt.Sprintf(" %s %s  %s%s  %s", ind, src, star, title, date)
 	}
-
-	if isCurrent {
-		return selectedRowStyle.Width(listWidth).Render(row)
-	}
-	return normalRowStyle.Width(listWidth).Render(row)
+	return ""
 }

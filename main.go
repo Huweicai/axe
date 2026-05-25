@@ -40,6 +40,9 @@ func main() {
 		case "note":
 			cmdNote(os.Args[2:])
 			return
+		case "theme":
+			cmdTheme(os.Args[2:])
+			return
 		case "config":
 			cmdConfig()
 			return
@@ -63,6 +66,7 @@ Usage:
   axe star <id-prefix>       Star (pin) session
   axe unstar <id-prefix>     Unstar session
   axe note <id-prefix> <txt> Add/replace note on session
+  axe theme [name]           List themes or set theme
   axe config                 Show current config
   axe help                   Show this help
 
@@ -104,6 +108,10 @@ func loadContext() *context {
 		cfg.PinnedWorkspaces = inferWorkspaces(providers)
 		data, _ := json.MarshalIndent(cfg, "", "  ")
 		os.WriteFile(configPath, data, 0644)
+	}
+
+	if cfg.Theme != "" {
+		tui.SetTheme(cfg.Theme)
 	}
 
 	return &context{providers: providers, cfg: cfg, st: st, axeDir: axeDir}
@@ -357,6 +365,42 @@ func cmdUnstar(args []string) {
 		title = string([]rune(title)[:50]) + ".."
 	}
 	fmt.Printf("Unstarred: %s:%s  %s\n", s.Source, s.ID[:8], title)
+}
+
+func cmdTheme(args []string) {
+	ctx := loadContext()
+	if len(args) == 0 {
+		current := ctx.cfg.Theme
+		if current == "" {
+			current = "default"
+		}
+		for _, name := range tui.ThemeNames() {
+			marker := "  "
+			if name == current {
+				marker = "▸ "
+			}
+			fmt.Printf("%s%s\n", marker, name)
+		}
+		fmt.Println("\nUsage: axe theme <name>")
+		return
+	}
+	name := args[0]
+	found := false
+	for _, t := range tui.ThemeNames() {
+		if t == name {
+			found = true
+			break
+		}
+	}
+	if !found {
+		fmt.Fprintf(os.Stderr, "unknown theme %q, available: %s\n", name, strings.Join(tui.ThemeNames(), ", "))
+		os.Exit(1)
+	}
+	ctx.cfg.Theme = name
+	configPath := filepath.Join(ctx.axeDir, "config.json")
+	data, _ := json.MarshalIndent(ctx.cfg, "", "  ")
+	os.WriteFile(configPath, data, 0644)
+	fmt.Printf("Theme set to: %s\n", name)
 }
 
 func cmdNote(args []string) {
