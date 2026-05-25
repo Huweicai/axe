@@ -9,7 +9,6 @@ import (
 )
 
 func (m *Model) renderPreviewContent(width int) string {
-	m.refreshSnippets()
 	sel := m.selected()
 	if sel == nil {
 		return dimStyle.Render("\n  No selection")
@@ -72,7 +71,9 @@ func (m *Model) renderPreviewContent(width int) string {
 		}
 
 		// Conversation snippets
-		if len(m.previewSnippets) > 0 {
+		if s.ID != m.previewSessionID {
+			lines = append(lines, "", dimStyle.Render("loading..."))
+		} else if len(m.previewSnippets) > 0 {
 			lines = append(lines, "",
 				dimStyle.Render(fmt.Sprintf("─── conversation (%d messages) ───", m.previewMsgCount)),
 			)

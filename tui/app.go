@@ -110,7 +110,7 @@ func ExecReplace(dir string, args []string) error {
 
 // Init implements tea.Model.
 func (m Model) Init() tea.Cmd {
-	return nil
+	return m.loadSnippetsCmd()
 }
 
 // Update implements tea.Model.
@@ -123,6 +123,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case deepSearchDone:
 		m.handleDeepSearchDone(msg)
+		return m, nil
+
+	case snippetsLoaded:
+		if msg.sessionID == m.previewSessionID || m.previewSessionID == "" {
+			m.previewSessionID = msg.sessionID
+			m.previewSnippets = msg.snippets
+			m.previewMsgCount = msg.msgCount
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -197,13 +205,13 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.cursor > 0 {
 			m.cursor--
 		}
-		return m, nil
+		return m, m.loadSnippetsCmd()
 
 	case key.Matches(msg, keys.Down):
 		if m.cursor < len(m.filtered)-1 {
 			m.cursor++
 		}
-		return m, nil
+		return m, m.loadSnippetsCmd()
 
 	case key.Matches(msg, keys.TabFilter):
 		m.filter = (m.filter + 1) % 3
@@ -251,12 +259,12 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				if m.cursor < len(m.filtered)-1 {
 					m.cursor++
 				}
-				return m, nil
+				return m, m.loadSnippetsCmd()
 			case 'k':
 				if m.cursor > 0 {
 					m.cursor--
 				}
-				return m, nil
+				return m, m.loadSnippetsCmd()
 			}
 		}
 
@@ -407,32 +415,34 @@ func (m *Model) toggleStar() {
 	m.applyFilter()
 }
 
-// refreshSnippets loads snippet preview for the currently selected session.
-func (m *Model) refreshSnippets() {
+type snippetsLoaded struct {
+	sessionID string
+	snippets  []provider.Snippet
+	msgCount  int
+}
+
+func (m Model) loadSnippetsCmd() tea.Cmd {
 	sel := m.selected()
 	if sel == nil || sel.Kind != KindSession || sel.Session == nil {
-		m.previewSnippets = nil
-		m.previewMsgCount = 0
-		m.previewSessionID = ""
-		return
+		return nil
 	}
 	sid := sel.Session.ID
 	if sid == m.previewSessionID {
-		return // already cached
+		return nil
 	}
-	m.previewSessionID = sid
-	for _, p := range m.providers {
-		if p.Name() == sel.Session.Source {
-			snips, count, err := p.GetSnippets(sid, 20, 20)
-			if err == nil {
-				m.previewSnippets = snips
-				m.previewMsgCount = count
-			} else {
-				m.previewSnippets = nil
-				m.previewMsgCount = 0
+	source := sel.Session.Source
+	providers := m.providers
+	return func() tea.Msg {
+		for _, p := range providers {
+			if p.Name() == source {
+				snips, count, err := p.GetSnippets(sid, 20, 20)
+				if err == nil {
+					return snippetsLoaded{sessionID: sid, snippets: snips, msgCount: count}
+				}
+				return snippetsLoaded{sessionID: sid}
 			}
-			return
 		}
+		return snippetsLoaded{sessionID: sid}
 	}
 }
 
