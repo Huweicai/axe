@@ -143,9 +143,11 @@ func (p *ClaudeProvider) ListSessions() ([]Session, error) {
 			}
 
 			cwd, title := claudeExtractMeta(filePath)
-			// If the user set a name via Claude, use that instead
 			if name, ok := p.nameCache[sessionID]; ok {
 				title = name
+			}
+			if title == "" {
+				continue
 			}
 			sessions = append(sessions, Session{
 				ID:        sessionID,
