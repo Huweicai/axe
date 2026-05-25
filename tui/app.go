@@ -440,19 +440,19 @@ func (m Model) View() string {
 	header := m.renderHeader(m.width)
 	statusBar := m.renderStatusBar(m.width)
 
-	listWidth := m.width * 55 / 100
-	previewWidth := m.width - listWidth
-	bodyHeight := m.height - 3
+	// Account for borders: 2 chars each side per panel
+	innerWidth := m.width - 4 // outer border eats 2+2
+	listWidth := innerWidth * 55 / 100
+	previewWidth := innerWidth - listWidth
+	bodyHeight := m.height - 5 // header + statusbar + top/bottom borders
 
-	// Scroll offset so cursor stays visible
+	// Scroll offset
 	start := 0
 	if m.cursor >= bodyHeight {
 		start = m.cursor - bodyHeight + 1
 	}
 
-	rowStyle := lipgloss.NewStyle().Width(listWidth).MaxWidth(listWidth)
 	var listLines []string
-
 	visible := m.filtered
 	if start < len(visible) {
 		visible = visible[start:]
@@ -462,18 +462,22 @@ func (m Model) View() string {
 			break
 		}
 		isCursor := (i + start) == m.cursor
-		line := m.renderListRow(fi, listWidth, isCursor)
-		listLines = append(listLines, rowStyle.Render(line))
+		listLines = append(listLines, m.renderListRow(fi, listWidth, isCursor))
 	}
 	for len(listLines) < bodyHeight {
-		listLines = append(listLines, rowStyle.Render(""))
+		listLines = append(listLines, normalRowStyle.Width(listWidth).Render(""))
 	}
 
-	listPane := strings.Join(listLines, "\n")
+	listPane := activePanelBorder.
+		Width(listWidth).
+		Height(bodyHeight).
+		Render(strings.Join(listLines, "\n"))
 
-	previewStyle := previewBorder.Width(previewWidth - 2).Height(bodyHeight)
-	previewContent := m.renderPreviewContent(previewWidth - 4)
-	previewPane := previewStyle.Render(previewContent)
+	previewContent := m.renderPreviewContent(previewWidth - 2)
+	previewPane := panelBorder.
+		Width(previewWidth).
+		Height(bodyHeight).
+		Render(previewContent)
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top, listPane, previewPane)
 

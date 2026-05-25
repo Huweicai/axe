@@ -7,29 +7,30 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// renderPreviewContent renders the content for the right-side detail pane (no border).
 func (m *Model) renderPreviewContent(width int) string {
 	sel := m.selected()
 	if sel == nil {
-		return dimStyle.Render("no selection")
+		return dimStyle.Render("\n  No selection")
 	}
 
 	var lines []string
+	kv := func(label, value string) string {
+		return previewLabelStyle.Render(label+": ") + previewValueStyle.Render(value)
+	}
 
 	switch sel.Kind {
 	case KindWorkspace:
 		lines = append(lines,
-			workspaceStyle.Render("☆ Workspace"),
+			workspaceIconStyle.Render("★")+" "+workspaceStyle.Render(sel.Alias),
 			"",
-			fmt.Sprintf("Alias: %s", sel.Alias),
-			fmt.Sprintf("Path:  %s", shortenPath(sel.Path, width-7)),
+			kv("Path", shortenPath(sel.Path, width-8)),
 		)
 		if sel.Running {
-			lines = append(lines, "", runningStyle.Render("● running"))
+			lines = append(lines, runningStyle.Render("● running"))
 		}
 		lines = append(lines, "",
-			dimStyle.Render("enter → open with "+m.defaultTool()),
-			dimStyle.Render("x     → open with "+m.altTool()),
+			dimStyle.Render("  enter → "+m.defaultTool()),
+			dimStyle.Render("  x     → "+m.altTool()),
 		)
 
 	case KindSession:
@@ -38,35 +39,37 @@ func (m *Model) renderPreviewContent(width int) string {
 			break
 		}
 
-		srcStyle := sourceClaudeStyle
+		badge := claudeBadge.Render(s.Source)
 		if s.Source == "codex" {
-			srcStyle = sourceCodexStyle
+			badge = codexBadge.Render(s.Source)
 		}
 		lines = append(lines,
-			srcStyle.Render("Source: "+s.Source),
+			badge,
 			"",
-			fmt.Sprintf("Dir:     %s", shortenPath(s.Directory, width-10)),
-			fmt.Sprintf("Updated: %s", s.UpdatedAt.Format("2006-01-02 15:04")),
-			fmt.Sprintf("Size:    %s", formatSize(s.FileSize)),
+			kv("Dir    ", shortenPath(s.Directory, width-12)),
+			kv("Updated", s.UpdatedAt.Format("2006-01-02 15:04")),
+			kv("Size   ", formatSize(s.FileSize)),
 		)
 		if sel.Running {
-			lines = append(lines, runningStyle.Render("● running"))
+			lines = append(lines, "", runningStyle.Render("● running"))
 		}
 		if sel.Note != "" {
-			lines = append(lines, "", "Note: "+sel.Note)
+			lines = append(lines, "", previewLabelStyle.Render("Note: ")+previewValueStyle.Render(sel.Note))
 		}
 		if sel.Done {
-			lines = append(lines, "", dimStyle.Render("✓ done"))
+			lines = append(lines, dimStyle.Render("  ✓ done"))
 		}
 		if s.Title != "" {
-			lines = append(lines, "", dimStyle.Render("> "+truncate(s.Title, width-3)))
+			lines = append(lines, "",
+				dimStyle.Render("─── first message ───"),
+				previewValueStyle.Render(truncate(s.Title, width-2)),
+			)
 		}
 	}
 
 	return strings.Join(lines, "\n")
 }
 
-// formatSize formats a byte count into a human-readable string.
 func formatSize(bytes int64) string {
 	switch {
 	case bytes >= 1<<30:
@@ -80,102 +83,83 @@ func formatSize(bytes int64) string {
 	}
 }
 
-// renderHeader builds the top header line with query, count, and filter.
 func (m *Model) renderHeader(width int) string {
-	var b strings.Builder
-
-	b.WriteString(titleStyle.Render("> "))
+	prompt := "❯ "
 	if m.deepMode {
-		b.WriteString(titleStyle.Render("/"))
+		prompt = "/ "
 	}
-	b.WriteString(m.query)
+	query := m.query + "▏"
 	if m.noteInput {
-		b.WriteString(titleStyle.Render(" [note: " + m.noteText + "_]"))
-	} else {
-		b.WriteString(titleStyle.Render("_"))
+		query = m.noteText + "▏" + dimStyle.Render(" (note)")
 	}
 
-	count := fmt.Sprintf(" [%d]", len(m.filtered))
-	b.WriteString(dimStyle.Render(count))
-
+	left := prompt + query
+	right := fmt.Sprintf("[%d]", len(m.filtered))
 	if m.filter != filterAll {
-		b.WriteString(" ")
-		if m.filter == filterClaude {
-			b.WriteString(sourceClaudeStyle.Render("claude"))
-		} else {
-			b.WriteString(sourceCodexStyle.Render("codex"))
-		}
+		right += " " + m.filter.String()
 	}
 
-	line := b.String()
-	// Pad to full width
-	return lipgloss.NewStyle().Width(width).Render(line)
+	gap := width - lipgloss.Width(left) - lipgloss.Width(right) - 2
+	if gap < 1 {
+		gap = 1
+	}
+
+	bar := left + strings.Repeat(" ", gap) + headerDimStyle.Render(right)
+	return headerStyle.Width(width).Render(bar)
 }
 
-// renderStatusBar builds the bottom status bar.
 func (m *Model) renderStatusBar(width int) string {
-	parts := []string{
-		"enter open",
-		"d done",
-		"/ search",
-		"tab filter",
-		"g group",
-		"^a show done",
-		"q quit",
+	items := []struct{ key, desc string }{
+		{"enter", "open"},
+		{"d", "done"},
+		{"/", "search"},
+		{"tab", "filter"},
+		{"^a", "show done"},
+		{"q", "quit"},
 	}
-	bar := strings.Join(parts, " │ ")
+	var parts []string
+	for _, it := range items {
+		parts = append(parts, statusKeyStyle.Render(it.key)+" "+statusBarStyle.Render(it.desc))
+	}
+	bar := strings.Join(parts, statusBarStyle.Render("  "))
 	return statusBarStyle.Width(width).Render(bar)
 }
 
-// renderListRow renders a single row for the list pane.
 func (m *Model) renderListRow(idx int, listWidth int, isCurrent bool) string {
 	it := m.items[idx]
-	var row string
+	contentWidth := listWidth - 4
 
+	var row string
 	switch it.Kind {
 	case KindWorkspace:
-		prefix := "  "
-		if isCurrent {
-			prefix = selectedStyle.Render("> ")
-		}
-		alias := workspaceStyle.Render("☆ " + truncate(it.Alias, 15))
-		path := dimStyle.Render(shortenPath(it.Path, listWidth-22))
-		row = prefix + alias + "  " + path
+		icon := workspaceIconStyle.Render("★")
+		alias := workspaceStyle.Render(truncate(it.Alias, 14))
+		path := dimStyle.Render(shortenPath(it.Path, contentWidth-18))
+		row = fmt.Sprintf(" %s %s  %s", icon, alias, path)
 
 	case KindSession:
-		prefix := "  "
-		if isCurrent {
-			prefix = selectedStyle.Render("> ")
-		}
-		// Source label
-		srcLabel := it.Source()
-		srcStyle := sourceClaudeStyle
-		if srcLabel == "codex" {
-			srcStyle = sourceCodexStyle
-		}
-		src := srcStyle.Render(fmt.Sprintf("%-6s", srcLabel))
-
-		// Title
-		titleMaxLen := listWidth - 24
-		if titleMaxLen < 10 {
-			titleMaxLen = 10
-		}
-		title := truncate(it.Title(), titleMaxLen)
-		if it.Done {
-			title = dimStyle.Render(title)
+		src := sourceClaudeStyle.Render("claude")
+		if it.Source() == "codex" {
+			src = sourceCodexStyle.Render("codex ")
 		}
 
-		// Date
-		date := it.UpdatedAt().Format("1/02")
+		titleMax := contentWidth - 22
+		if titleMax < 8 {
+			titleMax = 8
+		}
+		title := truncate(it.Title(), titleMax)
+		date := dateStyle.Render(it.UpdatedAt().Format("1/02"))
 
-		// Running indicator
 		indicator := " "
 		if it.Running {
 			indicator = runningStyle.Render("●")
 		}
 
-		row = fmt.Sprintf("%s%s %s  %s  %s", prefix, indicator, src, title, dimStyle.Render(date))
+		row = fmt.Sprintf(" %s %s  %s  %s", indicator, src, title, date)
 	}
 
-	return row
+	if isCurrent {
+		return selectedRowStyle.Width(listWidth).Render(row)
+	}
+	return normalRowStyle.Width(listWidth).Render(row)
 }
