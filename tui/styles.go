@@ -92,6 +92,9 @@ var (
 	// Date column
 	dateStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
 
+	// Star style
+	starStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
+
 	// Title style (used in header)
 	titleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
 )

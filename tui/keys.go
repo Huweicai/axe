@@ -10,6 +10,7 @@ type keyMap struct {
 	Done       key.Binding
 	Undo       key.Binding
 	NoteEdit   key.Binding
+	Star       key.Binding
 	DeepSearch key.Binding
 	TabFilter  key.Binding
 	Group      key.Binding
@@ -47,6 +48,10 @@ var keys = keyMap{
 	NoteEdit: key.NewBinding(
 		key.WithKeys("n"),
 		key.WithHelp("n", "note"),
+	),
+	Star: key.NewBinding(
+		key.WithKeys("s"),
+		key.WithHelp("s", "star"),
 	),
 	DeepSearch: key.NewBinding(
 		key.WithKeys("/"),

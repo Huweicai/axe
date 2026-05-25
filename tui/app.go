@@ -51,17 +51,24 @@ type Model struct {
 	state     *state.State
 	config    *state.Config
 	running   map[string]bool
-	execArgs  []string // set before quitting to exec after tea exits
-	execDir   string   // chdir here before exec
+	activeIDs map[string]string // sessionID → status (from Claude sessions/*.json)
+	execArgs  []string          // set before quitting to exec after tea exits
+	execDir   string            // chdir here before exec
+
+	// Preview snippet cache
+	previewSnippets  []provider.Snippet
+	previewMsgCount  int
+	previewSessionID string
 }
 
 // New creates a Model populated with workspace and session items.
-func New(providers []provider.Provider, cfg *state.Config, st *state.State, running map[string]bool) Model {
+func New(providers []provider.Provider, cfg *state.Config, st *state.State, running map[string]bool, activeIDs map[string]string) Model {
 	m := Model{
 		providers: providers,
 		config:    cfg,
 		state:     st,
 		running:   running,
+		activeIDs: activeIDs,
 		width:     80,
 		height:    24,
 	}
@@ -225,6 +232,9 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			case 'u':
 				m.undoDone()
 				return m, nil
+			case 's':
+				m.toggleStar()
+				return m, nil
 			case 'n':
 				if sel := m.selected(); sel != nil && sel.Kind == KindSession {
 					m.noteInput = true
@@ -292,20 +302,30 @@ func (m *Model) loadItems() {
 				Session: s,
 				Done:    m.state.IsDone(sk),
 				Note:    m.state.GetNote(sk),
+				Starred: m.state.IsStarred(sk),
 				Running: m.running[s.Directory],
+			}
+			// Set active status from Claude sessions metadata
+			if status, ok := m.activeIDs[s.ID]; ok {
+				li.Active = true
+				li.ActiveStatus = status
+				li.Running = true // active sessions are running
 			}
 			li.MatchText = buildMatchText(li)
 			m.items = append(m.items, li)
 		}
 	}
 
-	// Sort sessions by UpdatedAt descending (workspaces stay at top)
+	// Sort: Workspaces → Starred sessions (by updated_at desc) → Regular sessions (by updated_at desc)
 	sort.SliceStable(m.items, func(i, j int) bool {
 		a, b := m.items[i], m.items[j]
 		if a.Kind != b.Kind {
 			return a.Kind < b.Kind // workspaces first
 		}
 		if a.Kind == KindSession {
+			if a.Starred != b.Starred {
+				return a.Starred // starred first
+			}
 			return a.UpdatedAt().After(b.UpdatedAt())
 		}
 		return false
@@ -371,6 +391,49 @@ func (m *Model) undoDone() {
 	sel.Done = false
 	_ = m.state.Save()
 	m.applyFilter()
+}
+
+// toggleStar toggles the star on the selected session.
+func (m *Model) toggleStar() {
+	sel := m.selected()
+	if sel == nil || sel.Kind != KindSession {
+		return
+	}
+	starred := m.state.ToggleStar(sel.StateKey())
+	sel.Starred = starred
+	_ = m.state.Save()
+	// Re-sort and re-filter to move starred items up
+	m.loadItems()
+	m.applyFilter()
+}
+
+// refreshSnippets loads snippet preview for the currently selected session.
+func (m *Model) refreshSnippets() {
+	sel := m.selected()
+	if sel == nil || sel.Kind != KindSession || sel.Session == nil {
+		m.previewSnippets = nil
+		m.previewMsgCount = 0
+		m.previewSessionID = ""
+		return
+	}
+	sid := sel.Session.ID
+	if sid == m.previewSessionID {
+		return // already cached
+	}
+	m.previewSessionID = sid
+	for _, p := range m.providers {
+		if p.Name() == sel.Session.Source {
+			snips, count, err := p.GetSnippets(sid, 3, 2)
+			if err == nil {
+				m.previewSnippets = snips
+				m.previewMsgCount = count
+			} else {
+				m.previewSnippets = nil
+				m.previewMsgCount = 0
+			}
+			return
+		}
+	}
 }
 
 // execSelected sets execArgs for the selected item and quits.

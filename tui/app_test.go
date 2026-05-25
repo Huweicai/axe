@@ -22,6 +22,9 @@ func (p *mockProvider) ListSessions() ([]provider.Session, error) {
 func (p *mockProvider) SearchContent(sessionID, keyword string) ([]provider.Match, error) {
 	return nil, nil
 }
+func (p *mockProvider) GetSnippets(sessionID string, headN, tailN int) ([]provider.Snippet, int, error) {
+	return nil, 0, nil
+}
 func (p *mockProvider) ResumeCommand(sessionID string) []string {
 	return []string{p.name, "-r", sessionID}
 }
@@ -47,7 +50,7 @@ func newTestModel() Model {
 	st := &state.State{Sessions: make(map[string]*state.SessionState)}
 	running := map[string]bool{"/home/user/proj1": true}
 
-	return New([]provider.Provider{mp}, cfg, st, running)
+	return New([]provider.Provider{mp}, cfg, st, running, nil)
 }
 
 func TestModel_InitialState(t *testing.T) {

@@ -147,6 +147,63 @@ func (p *CodexProvider) findSessionFile(sessionID string) (string, error) {
 	return found, nil
 }
 
+func (p *CodexProvider) GetSnippets(sessionID string, headN, tailN int) ([]Snippet, int, error) {
+	filePath, err := p.findSessionFile(sessionID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer f.Close()
+
+	var all []Snippet
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+
+	for scanner.Scan() {
+		var line codexSessionLine
+		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
+			continue
+		}
+		if line.Type != "response_item" {
+			continue
+		}
+		var payload codexMessagePayload
+		if err := json.Unmarshal(line.Payload, &payload); err != nil {
+			continue
+		}
+		for _, c := range payload.Content {
+			var role string
+			switch c.Type {
+			case "input_text":
+				role = "user"
+			case "output_text":
+				role = "assistant"
+			default:
+				continue
+			}
+			text := strings.TrimSpace(c.Text)
+			if text == "" {
+				continue
+			}
+			if idx := strings.IndexByte(text, '\n'); idx >= 0 {
+				text = text[:idx]
+			}
+			text = strings.TrimSpace(text)
+			if len([]rune(text)) > 150 {
+				text = string([]rune(text)[:150]) + ".."
+			}
+			all = append(all, Snippet{Role: role, Text: text})
+		}
+	}
+
+	total := len(all)
+	return mergeHeadTail(all, headN, tailN), total, scanner.Err()
+}
+
 func (p *CodexProvider) SearchContent(sessionID, keyword string) ([]Match, error) {
 	filePath, err := p.findSessionFile(sessionID)
 	if err != nil {

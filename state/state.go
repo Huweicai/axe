@@ -17,8 +17,9 @@ type Config struct {
 }
 
 type SessionState struct {
-	Done bool   `json:"done,omitempty"`
-	Note string `json:"note,omitempty"`
+	Done    bool   `json:"done,omitempty"`
+	Note    string `json:"note,omitempty"`
+	Starred bool   `json:"starred,omitempty"`
 }
 
 type State struct {
@@ -106,4 +107,17 @@ func (s *State) GetNote(key string) string {
 		return ss.Note
 	}
 	return ""
+}
+
+func (s *State) ToggleStar(key string) bool {
+	ss := s.getOrCreate(key)
+	ss.Starred = !ss.Starred
+	return ss.Starred
+}
+
+func (s *State) IsStarred(key string) bool {
+	if ss, ok := s.Sessions[key]; ok {
+		return ss.Starred
+	}
+	return false
 }

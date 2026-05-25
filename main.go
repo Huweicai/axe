@@ -31,6 +31,12 @@ func main() {
 		case "undone":
 			cmdUndone(os.Args[2:])
 			return
+		case "star":
+			cmdStar(os.Args[2:])
+			return
+		case "unstar":
+			cmdUnstar(os.Args[2:])
+			return
 		case "note":
 			cmdNote(os.Args[2:])
 			return
@@ -54,6 +60,8 @@ Usage:
   axe search <keyword>       Deep search session content
   axe done <id-prefix>       Mark session as done
   axe undone <id-prefix>     Undo done mark
+  axe star <id-prefix>       Star (pin) session
+  axe unstar <id-prefix>     Unstar session
   axe note <id-prefix> <txt> Add/replace note on session
   axe config                 Show current config
   axe help                   Show this help
@@ -61,7 +69,8 @@ Usage:
 In TUI:
   enter  open/resume    d  mark done     /  deep search
   x      alt tool       u  undo done     tab  filter source
-  n      add note       q  quit          ^a   show done`)
+  n      add note       s  star/unstar   ^a   show done
+  q      quit`)
 }
 
 type context struct {
@@ -176,9 +185,12 @@ func cmdLs(args []string) {
 			title = string(runes[:50]) + ".."
 		}
 
+		starred := ctx.st.IsStarred(key)
 		mark := " "
 		if done {
 			mark = "✓"
+		} else if starred {
+			mark = "★"
 		}
 
 		date := s.UpdatedAt.Format("01/02 15:04")
@@ -291,6 +303,62 @@ func cmdUndone(args []string) {
 	fmt.Printf("Unmarked done: %s:%s  %s\n", s.Source, s.ID[:8], title)
 }
 
+func cmdStar(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: axe star <session-id-prefix>")
+		os.Exit(1)
+	}
+	ctx := loadContext()
+	s, err := findSession(ctx, args[0])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	key := s.Source + ":" + s.ID
+	ss := ctx.st.Sessions[key]
+	if ss == nil {
+		ctx.st.ToggleStar(key) // creates + sets true
+	} else if !ss.Starred {
+		ctx.st.ToggleStar(key)
+	}
+	if err := ctx.st.Save(); err != nil {
+		fmt.Fprintln(os.Stderr, "save error:", err)
+		os.Exit(1)
+	}
+	title := s.Title
+	if len([]rune(title)) > 50 {
+		title = string([]rune(title)[:50]) + ".."
+	}
+	fmt.Printf("★ Starred: %s:%s  %s\n", s.Source, s.ID[:8], title)
+}
+
+func cmdUnstar(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: axe unstar <session-id-prefix>")
+		os.Exit(1)
+	}
+	ctx := loadContext()
+	s, err := findSession(ctx, args[0])
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	key := s.Source + ":" + s.ID
+	ss := ctx.st.Sessions[key]
+	if ss != nil && ss.Starred {
+		ctx.st.ToggleStar(key)
+	}
+	if err := ctx.st.Save(); err != nil {
+		fmt.Fprintln(os.Stderr, "save error:", err)
+		os.Exit(1)
+	}
+	title := s.Title
+	if len([]rune(title)) > 50 {
+		title = string([]rune(title)[:50]) + ".."
+	}
+	fmt.Printf("Unstarred: %s:%s  %s\n", s.Source, s.ID[:8], title)
+}
+
 func cmdNote(args []string) {
 	if len(args) < 2 {
 		fmt.Fprintln(os.Stderr, "usage: axe note <session-id-prefix> <text>")
@@ -329,7 +397,16 @@ func cmdTUI() {
 	}
 
 	running := process.DetectRunning()
-	model := tui.New(ctx.providers, ctx.cfg, ctx.st, running)
+
+	// Collect active session IDs from Claude provider
+	var activeIDs map[string]string
+	for _, p := range ctx.providers {
+		if cp, ok := p.(*provider.ClaudeProvider); ok {
+			activeIDs = cp.ActiveSessionIDs()
+		}
+	}
+
+	model := tui.New(ctx.providers, ctx.cfg, ctx.st, running, activeIDs)
 
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	finalModel, err := p.Run()

@@ -18,14 +18,17 @@ const (
 
 // ListItem is a unified row in the TUI list — either a pinned workspace or a session.
 type ListItem struct {
-	Kind      ItemKind
-	Alias     string // workspace alias (KindWorkspace only)
-	Path      string // workspace path or session directory
-	Session   *provider.Session
-	Done      bool
-	Note      string
-	Running   bool
-	MatchText string // lowered title + dir + note for search
+	Kind         ItemKind
+	Alias        string // workspace alias (KindWorkspace only)
+	Path         string // workspace path or session directory
+	Session      *provider.Session
+	Done         bool
+	Note         string
+	Running      bool
+	Starred      bool
+	Active       bool   // true if session appears in ~/.claude/sessions/*.json
+	ActiveStatus string // "idle" or "busy" (only when Active)
+	MatchText    string // lowered title + dir + note for search
 }
 
 // Title returns the display title for this item.

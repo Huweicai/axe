@@ -11,11 +11,66 @@ import (
 
 // ClaudeProvider reads sessions from ~/.claude/projects/
 type ClaudeProvider struct {
-	baseDir string
+	baseDir    string
+	nameCache  map[string]string // sessionID → user-set name from sessions/*.json
+	activeIDs  map[string]string // sessionID → status ("idle"/"busy") from sessions/*.json
+	cacheReady bool
 }
 
 func NewClaudeProvider(baseDir string) *ClaudeProvider {
 	return &ClaudeProvider{baseDir: baseDir}
+}
+
+// claudeSessionJSON represents a session metadata file in ~/.claude/sessions/*.json
+type claudeSessionJSON struct {
+	PID       int    `json:"pid"`
+	SessionID string `json:"sessionId"`
+	Name      string `json:"name"`
+	Cwd       string `json:"cwd"`
+	Status    string `json:"status"`
+}
+
+// loadSessionsMetadata reads ~/.claude/sessions/*.json files and populates
+// nameCache (sessionID → user-set name) and activeIDs (sessionID → status).
+func (p *ClaudeProvider) loadSessionsMetadata() {
+	if p.cacheReady {
+		return
+	}
+	p.nameCache = make(map[string]string)
+	p.activeIDs = make(map[string]string)
+	p.cacheReady = true
+
+	sessionsDir := filepath.Join(p.baseDir, "sessions")
+	entries, err := os.ReadDir(sessionsDir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(sessionsDir, e.Name()))
+		if err != nil {
+			continue
+		}
+		var sj claudeSessionJSON
+		if err := json.Unmarshal(data, &sj); err != nil || sj.SessionID == "" {
+			continue
+		}
+		if sj.Name != "" {
+			p.nameCache[sj.SessionID] = sj.Name
+		}
+		if sj.Status != "" {
+			p.activeIDs[sj.SessionID] = sj.Status
+		}
+	}
+}
+
+// ActiveSessionIDs returns a map of sessionID → status for sessions listed in
+// ~/.claude/sessions/*.json. Call after ListSessions.
+func (p *ClaudeProvider) ActiveSessionIDs() map[string]string {
+	p.loadSessionsMetadata()
+	return p.activeIDs
 }
 
 func (p *ClaudeProvider) Name() string { return "claude" }
@@ -57,6 +112,8 @@ func (m *claudeInnerMessage) extractText() string {
 }
 
 func (p *ClaudeProvider) ListSessions() ([]Session, error) {
+	p.loadSessionsMetadata()
+
 	projectsDir := filepath.Join(p.baseDir, "projects")
 	projectDirs, err := os.ReadDir(projectsDir)
 	if err != nil {
@@ -86,6 +143,10 @@ func (p *ClaudeProvider) ListSessions() ([]Session, error) {
 			}
 
 			cwd, title := claudeExtractMeta(filePath)
+			// If the user set a name via Claude, use that instead
+			if name, ok := p.nameCache[sessionID]; ok {
+				title = name
+			}
 			sessions = append(sessions, Session{
 				ID:        sessionID,
 				Source:    "claude",
@@ -147,6 +208,56 @@ func claudeExtractMeta(filePath string) (cwd, title string) {
 		}
 	}
 	return
+}
+
+func (p *ClaudeProvider) GetSnippets(sessionID string, headN, tailN int) ([]Snippet, int, error) {
+	filePath, err := p.findSessionFile(sessionID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer f.Close()
+
+	var all []Snippet
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+
+	for scanner.Scan() {
+		var msg claudeMessage
+		if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
+			continue
+		}
+		if msg.IsMeta || msg.IsSidechain {
+			continue
+		}
+		if msg.Type != "user" && msg.Type != "assistant" {
+			continue
+		}
+		var inner claudeInnerMessage
+		if err := json.Unmarshal(msg.Message, &inner); err != nil {
+			continue
+		}
+		text := strings.TrimSpace(inner.extractText())
+		if text == "" {
+			continue
+		}
+		// First line only, truncate to 150 chars
+		if idx := strings.IndexByte(text, '\n'); idx >= 0 {
+			text = text[:idx]
+		}
+		text = strings.TrimSpace(text)
+		if len([]rune(text)) > 150 {
+			text = string([]rune(text)[:150]) + ".."
+		}
+		all = append(all, Snippet{Role: msg.Type, Text: text})
+	}
+
+	total := len(all)
+	return mergeHeadTail(all, headN, tailN), total, scanner.Err()
 }
 
 func (p *ClaudeProvider) SearchContent(sessionID, keyword string) ([]Match, error) {

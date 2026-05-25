@@ -8,6 +8,7 @@ import (
 )
 
 func (m *Model) renderPreviewContent(width int) string {
+	m.refreshSnippets()
 	sel := m.selected()
 	if sel == nil {
 		return dimStyle.Render("\n  No selection")
@@ -50,8 +51,17 @@ func (m *Model) renderPreviewContent(width int) string {
 			kv("Updated", s.UpdatedAt.Format("2006-01-02 15:04")),
 			kv("Size   ", formatSize(s.FileSize)),
 		)
-		if sel.Running {
+		if sel.Active {
+			status := sel.ActiveStatus
+			if status == "" {
+				status = "idle"
+			}
+			lines = append(lines, "", runningStyle.Render(fmt.Sprintf("● active (%s)", status)))
+		} else if sel.Running {
 			lines = append(lines, "", runningStyle.Render("● running"))
+		}
+		if sel.Starred {
+			lines = append(lines, starStyle.Render("★ starred"))
 		}
 		if sel.Note != "" {
 			lines = append(lines, "", previewLabelStyle.Render("Note: ")+previewValueStyle.Render(sel.Note))
@@ -59,7 +69,26 @@ func (m *Model) renderPreviewContent(width int) string {
 		if sel.Done {
 			lines = append(lines, dimStyle.Render("  ✓ done"))
 		}
-		if s.Title != "" {
+
+		// Conversation snippets
+		if len(m.previewSnippets) > 0 {
+			lines = append(lines, "",
+				dimStyle.Render(fmt.Sprintf("─── conversation (%d messages) ───", m.previewMsgCount)),
+			)
+			headN := 3
+			tailN := 2
+			showEllipsis := m.previewMsgCount > headN+tailN
+			for i, sn := range m.previewSnippets {
+				icon := "👤"
+				if sn.Role == "assistant" {
+					icon = "🤖"
+				}
+				lines = append(lines, previewValueStyle.Render(icon+" "+truncate(sn.Text, width-6)))
+				if showEllipsis && i == headN-1 {
+					lines = append(lines, dimStyle.Render("   ···"))
+				}
+			}
+		} else if s.Title != "" {
 			lines = append(lines, "",
 				dimStyle.Render("─── first message ───"),
 				previewValueStyle.Render(truncate(s.Title, width-2)),
@@ -111,6 +140,7 @@ func (m *Model) renderHeader(width int) string {
 func (m *Model) renderStatusBar(width int) string {
 	items := []struct{ key, desc string }{
 		{"enter", "open"},
+		{"s", "star"},
 		{"d", "done"},
 		{"/", "search"},
 		{"tab", "filter"},
@@ -143,7 +173,15 @@ func (m *Model) renderListRow(idx int, listWidth int, isCurrent bool) string {
 			src = sourceCodexStyle.Render("codex ")
 		}
 
+		starPrefix := ""
+		if it.Starred {
+			starPrefix = starStyle.Render("★") + " "
+		}
+
 		titleMax := contentWidth - 22
+		if it.Starred {
+			titleMax -= 3
+		}
 		if titleMax < 8 {
 			titleMax = 8
 		}
@@ -155,7 +193,7 @@ func (m *Model) renderListRow(idx int, listWidth int, isCurrent bool) string {
 			indicator = runningStyle.Render("●")
 		}
 
-		row = fmt.Sprintf(" %s %s  %s  %s", indicator, src, title, date)
+		row = fmt.Sprintf(" %s %s  %s%s  %s", indicator, src, starPrefix, title, date)
 	}
 
 	if isCurrent {
