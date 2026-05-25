@@ -5,190 +5,185 @@ import "github.com/charmbracelet/lipgloss"
 type Theme struct {
 	Name string
 
-	// Panel borders
-	BorderFg       lipgloss.Color
-	ActiveBorderFg lipgloss.Color
+	BorderFg       lipgloss.TerminalColor
+	ActiveBorderFg lipgloss.TerminalColor
 
-	// Header
-	HeaderFg    lipgloss.Color
-	HeaderBg    lipgloss.Color
-	HeaderDimFg lipgloss.Color
+	HeaderFg    lipgloss.TerminalColor
+	HeaderBg    lipgloss.TerminalColor
+	HeaderDimFg lipgloss.TerminalColor
 
-	// Selected row
-	SelectedFg lipgloss.Color
-	SelectedBg lipgloss.Color
+	SelectedFg lipgloss.TerminalColor
+	SelectedBg lipgloss.TerminalColor
 
-	// Normal text
-	NormalFg lipgloss.Color
-	DimFg    lipgloss.Color
+	NormalFg lipgloss.TerminalColor
+	DimFg    lipgloss.TerminalColor
 
-	// Source colors
-	ClaudeFg lipgloss.Color
-	CodexFg  lipgloss.Color
+	ClaudeFg lipgloss.TerminalColor
+	CodexFg  lipgloss.TerminalColor
 
-	// Accents
-	WorkspaceFg lipgloss.Color
-	StarFg      lipgloss.Color
-	RunningFg   lipgloss.Color
-	DateFg      lipgloss.Color
+	WorkspaceFg lipgloss.TerminalColor
+	StarFg      lipgloss.TerminalColor
+	RunningFg   lipgloss.TerminalColor
+	DateFg      lipgloss.TerminalColor
 
-	// Badges (preview pane)
-	ClaudeBadgeFg lipgloss.Color
-	ClaudeBadgeBg lipgloss.Color
-	CodexBadgeFg  lipgloss.Color
-	CodexBadgeBg  lipgloss.Color
+	ClaudeBadgeFg lipgloss.TerminalColor
+	ClaudeBadgeBg lipgloss.TerminalColor
+	CodexBadgeFg  lipgloss.TerminalColor
+	CodexBadgeBg  lipgloss.TerminalColor
 
-	// Preview
-	PreviewTitleFg lipgloss.Color
-	PreviewLabelFg lipgloss.Color
-	PreviewValueFg lipgloss.Color
+	PreviewTitleFg lipgloss.TerminalColor
+	PreviewLabelFg lipgloss.TerminalColor
+	PreviewValueFg lipgloss.TerminalColor
 
-	// Status bar
-	StatusFg    lipgloss.Color
-	StatusBg    lipgloss.Color
-	StatusKeyFg lipgloss.Color
+	StatusFg    lipgloss.TerminalColor
+	StatusBg    lipgloss.TerminalColor
+	StatusKeyFg lipgloss.TerminalColor
+}
+
+func ac(light, dark string) lipgloss.AdaptiveColor {
+	return lipgloss.AdaptiveColor{Light: light, Dark: dark}
 }
 
 var themes = map[string]Theme{
 	"default": {
 		Name:           "default",
-		BorderFg:       lipgloss.Color("238"),
-		ActiveBorderFg: lipgloss.Color("99"),
-		HeaderFg:       lipgloss.Color("255"),
-		HeaderBg:       lipgloss.Color("63"),
-		HeaderDimFg:    lipgloss.Color("189"),
-		SelectedFg:     lipgloss.Color("255"),
-		SelectedBg:     lipgloss.Color("62"),
-		NormalFg:       lipgloss.Color("252"),
-		DimFg:          lipgloss.Color("243"),
-		ClaudeFg:       lipgloss.Color("111"),
-		CodexFg:        lipgloss.Color("215"),
-		WorkspaceFg:    lipgloss.Color("220"),
-		StarFg:         lipgloss.Color("220"),
-		RunningFg:      lipgloss.Color("82"),
-		DateFg:         lipgloss.Color("243"),
-		ClaudeBadgeFg:  lipgloss.Color("255"),
-		ClaudeBadgeBg:  lipgloss.Color("62"),
-		CodexBadgeFg:   lipgloss.Color("255"),
-		CodexBadgeBg:   lipgloss.Color("172"),
-		PreviewTitleFg: lipgloss.Color("99"),
-		PreviewLabelFg: lipgloss.Color("250"),
-		PreviewValueFg: lipgloss.Color("255"),
-		StatusFg:       lipgloss.Color("245"),
-		StatusBg:       lipgloss.Color("236"),
-		StatusKeyFg:    lipgloss.Color("117"),
+		BorderFg:       ac("245", "238"),
+		ActiveBorderFg: ac("63", "99"),
+		HeaderFg:       ac("255", "255"),
+		HeaderBg:       ac("63", "63"),
+		HeaderDimFg:    ac("232", "189"),
+		SelectedFg:     ac("255", "255"),
+		SelectedBg:     ac("62", "62"),
+		NormalFg:       ac("234", "252"),
+		DimFg:          ac("242", "243"),
+		ClaudeFg:       ac("25", "111"),
+		CodexFg:        ac("130", "215"),
+		WorkspaceFg:    ac("136", "220"),
+		StarFg:         ac("136", "220"),
+		RunningFg:      ac("28", "82"),
+		DateFg:         ac("242", "243"),
+		ClaudeBadgeFg:  ac("255", "255"),
+		ClaudeBadgeBg:  ac("62", "62"),
+		CodexBadgeFg:   ac("255", "255"),
+		CodexBadgeBg:   ac("172", "172"),
+		PreviewTitleFg: ac("63", "99"),
+		PreviewLabelFg: ac("240", "250"),
+		PreviewValueFg: ac("234", "255"),
+		StatusFg:       ac("240", "245"),
+		StatusBg:       ac("253", "236"),
+		StatusKeyFg:    ac("25", "117"),
 	},
 	"monokai": {
 		Name:           "monokai",
-		BorderFg:       lipgloss.Color("239"),
-		ActiveBorderFg: lipgloss.Color("148"),
-		HeaderFg:       lipgloss.Color("232"),
-		HeaderBg:       lipgloss.Color("148"),
-		HeaderDimFg:    lipgloss.Color("236"),
-		SelectedFg:     lipgloss.Color("232"),
-		SelectedBg:     lipgloss.Color("148"),
-		NormalFg:       lipgloss.Color("253"),
-		DimFg:          lipgloss.Color("242"),
-		ClaudeFg:       lipgloss.Color("81"),
-		CodexFg:        lipgloss.Color("208"),
-		WorkspaceFg:    lipgloss.Color("186"),
-		StarFg:         lipgloss.Color("186"),
-		RunningFg:      lipgloss.Color("148"),
-		DateFg:         lipgloss.Color("242"),
-		ClaudeBadgeFg:  lipgloss.Color("232"),
-		ClaudeBadgeBg:  lipgloss.Color("81"),
-		CodexBadgeFg:   lipgloss.Color("232"),
-		CodexBadgeBg:   lipgloss.Color("208"),
-		PreviewTitleFg: lipgloss.Color("148"),
-		PreviewLabelFg: lipgloss.Color("250"),
-		PreviewValueFg: lipgloss.Color("255"),
-		StatusFg:       lipgloss.Color("242"),
-		StatusBg:       lipgloss.Color("235"),
-		StatusKeyFg:    lipgloss.Color("81"),
+		BorderFg:       ac("245", "239"),
+		ActiveBorderFg: ac("64", "148"),
+		HeaderFg:       ac("232", "232"),
+		HeaderBg:       ac("148", "148"),
+		HeaderDimFg:    ac("236", "236"),
+		SelectedFg:     ac("232", "232"),
+		SelectedBg:     ac("148", "148"),
+		NormalFg:       ac("234", "253"),
+		DimFg:          ac("242", "242"),
+		ClaudeFg:       ac("25", "81"),
+		CodexFg:        ac("130", "208"),
+		WorkspaceFg:    ac("100", "186"),
+		StarFg:         ac("100", "186"),
+		RunningFg:      ac("64", "148"),
+		DateFg:         ac("242", "242"),
+		ClaudeBadgeFg:  ac("232", "232"),
+		ClaudeBadgeBg:  ac("81", "81"),
+		CodexBadgeFg:   ac("232", "232"),
+		CodexBadgeBg:   ac("208", "208"),
+		PreviewTitleFg: ac("64", "148"),
+		PreviewLabelFg: ac("240", "250"),
+		PreviewValueFg: ac("234", "255"),
+		StatusFg:       ac("240", "242"),
+		StatusBg:       ac("253", "235"),
+		StatusKeyFg:    ac("25", "81"),
 	},
 	"dracula": {
 		Name:           "dracula",
-		BorderFg:       lipgloss.Color("61"),
-		ActiveBorderFg: lipgloss.Color("141"),
-		HeaderFg:       lipgloss.Color("255"),
-		HeaderBg:       lipgloss.Color("141"),
-		HeaderDimFg:    lipgloss.Color("189"),
-		SelectedFg:     lipgloss.Color("255"),
-		SelectedBg:     lipgloss.Color("141"),
-		NormalFg:       lipgloss.Color("253"),
-		DimFg:          lipgloss.Color("103"),
-		ClaudeFg:       lipgloss.Color("117"),
-		CodexFg:        lipgloss.Color("215"),
-		WorkspaceFg:    lipgloss.Color("84"),
-		StarFg:         lipgloss.Color("228"),
-		RunningFg:      lipgloss.Color("84"),
-		DateFg:         lipgloss.Color("103"),
-		ClaudeBadgeFg:  lipgloss.Color("255"),
-		ClaudeBadgeBg:  lipgloss.Color("61"),
-		CodexBadgeFg:   lipgloss.Color("255"),
-		CodexBadgeBg:   lipgloss.Color("166"),
-		PreviewTitleFg: lipgloss.Color("141"),
-		PreviewLabelFg: lipgloss.Color("250"),
-		PreviewValueFg: lipgloss.Color("255"),
-		StatusFg:       lipgloss.Color("103"),
-		StatusBg:       lipgloss.Color("236"),
-		StatusKeyFg:    lipgloss.Color("141"),
+		BorderFg:       ac("245", "61"),
+		ActiveBorderFg: ac("98", "141"),
+		HeaderFg:       ac("255", "255"),
+		HeaderBg:       ac("141", "141"),
+		HeaderDimFg:    ac("232", "189"),
+		SelectedFg:     ac("255", "255"),
+		SelectedBg:     ac("141", "141"),
+		NormalFg:       ac("234", "253"),
+		DimFg:          ac("242", "103"),
+		ClaudeFg:       ac("25", "117"),
+		CodexFg:        ac("130", "215"),
+		WorkspaceFg:    ac("28", "84"),
+		StarFg:         ac("136", "228"),
+		RunningFg:      ac("28", "84"),
+		DateFg:         ac("242", "103"),
+		ClaudeBadgeFg:  ac("255", "255"),
+		ClaudeBadgeBg:  ac("61", "61"),
+		CodexBadgeFg:   ac("255", "255"),
+		CodexBadgeBg:   ac("166", "166"),
+		PreviewTitleFg: ac("98", "141"),
+		PreviewLabelFg: ac("240", "250"),
+		PreviewValueFg: ac("234", "255"),
+		StatusFg:       ac("240", "103"),
+		StatusBg:       ac("253", "236"),
+		StatusKeyFg:    ac("98", "141"),
 	},
 	"catppuccin": {
 		Name:           "catppuccin",
-		BorderFg:       lipgloss.Color("240"),
-		ActiveBorderFg: lipgloss.Color("183"),
-		HeaderFg:       lipgloss.Color("232"),
-		HeaderBg:       lipgloss.Color("183"),
-		HeaderDimFg:    lipgloss.Color("236"),
-		SelectedFg:     lipgloss.Color("232"),
-		SelectedBg:     lipgloss.Color("183"),
-		NormalFg:       lipgloss.Color("254"),
-		DimFg:          lipgloss.Color("245"),
-		ClaudeFg:       lipgloss.Color("110"),
-		CodexFg:        lipgloss.Color("216"),
-		WorkspaceFg:    lipgloss.Color("114"),
-		StarFg:         lipgloss.Color("222"),
-		RunningFg:      lipgloss.Color("114"),
-		DateFg:         lipgloss.Color("245"),
-		ClaudeBadgeFg:  lipgloss.Color("232"),
-		ClaudeBadgeBg:  lipgloss.Color("110"),
-		CodexBadgeFg:   lipgloss.Color("232"),
-		CodexBadgeBg:   lipgloss.Color("216"),
-		PreviewTitleFg: lipgloss.Color("183"),
-		PreviewLabelFg: lipgloss.Color("250"),
-		PreviewValueFg: lipgloss.Color("255"),
-		StatusFg:       lipgloss.Color("245"),
-		StatusBg:       lipgloss.Color("236"),
-		StatusKeyFg:    lipgloss.Color("183"),
+		BorderFg:       ac("245", "240"),
+		ActiveBorderFg: ac("133", "183"),
+		HeaderFg:       ac("232", "232"),
+		HeaderBg:       ac("183", "183"),
+		HeaderDimFg:    ac("236", "236"),
+		SelectedFg:     ac("232", "232"),
+		SelectedBg:     ac("183", "183"),
+		NormalFg:       ac("234", "254"),
+		DimFg:          ac("242", "245"),
+		ClaudeFg:       ac("25", "110"),
+		CodexFg:        ac("130", "216"),
+		WorkspaceFg:    ac("28", "114"),
+		StarFg:         ac("136", "222"),
+		RunningFg:      ac("28", "114"),
+		DateFg:         ac("242", "245"),
+		ClaudeBadgeFg:  ac("232", "232"),
+		ClaudeBadgeBg:  ac("110", "110"),
+		CodexBadgeFg:   ac("232", "232"),
+		CodexBadgeBg:   ac("216", "216"),
+		PreviewTitleFg: ac("133", "183"),
+		PreviewLabelFg: ac("240", "250"),
+		PreviewValueFg: ac("234", "255"),
+		StatusFg:       ac("240", "245"),
+		StatusBg:       ac("253", "236"),
+		StatusKeyFg:    ac("133", "183"),
 	},
 	"nord": {
 		Name:           "nord",
-		BorderFg:       lipgloss.Color("60"),
-		ActiveBorderFg: lipgloss.Color("110"),
-		HeaderFg:       lipgloss.Color("255"),
-		HeaderBg:       lipgloss.Color("60"),
-		HeaderDimFg:    lipgloss.Color("146"),
-		SelectedFg:     lipgloss.Color("255"),
-		SelectedBg:     lipgloss.Color("60"),
-		NormalFg:       lipgloss.Color("254"),
-		DimFg:          lipgloss.Color("246"),
-		ClaudeFg:       lipgloss.Color("110"),
-		CodexFg:        lipgloss.Color("173"),
-		WorkspaceFg:    lipgloss.Color("150"),
-		StarFg:         lipgloss.Color("222"),
-		RunningFg:      lipgloss.Color("150"),
-		DateFg:         lipgloss.Color("246"),
-		ClaudeBadgeFg:  lipgloss.Color("255"),
-		ClaudeBadgeBg:  lipgloss.Color("67"),
-		CodexBadgeFg:   lipgloss.Color("255"),
-		CodexBadgeBg:   lipgloss.Color("173"),
-		PreviewTitleFg: lipgloss.Color("110"),
-		PreviewLabelFg: lipgloss.Color("246"),
-		PreviewValueFg: lipgloss.Color("254"),
-		StatusFg:       lipgloss.Color("246"),
-		StatusBg:       lipgloss.Color("236"),
-		StatusKeyFg:    lipgloss.Color("110"),
+		BorderFg:       ac("245", "60"),
+		ActiveBorderFg: ac("25", "110"),
+		HeaderFg:       ac("255", "255"),
+		HeaderBg:       ac("60", "60"),
+		HeaderDimFg:    ac("232", "146"),
+		SelectedFg:     ac("255", "255"),
+		SelectedBg:     ac("60", "60"),
+		NormalFg:       ac("234", "254"),
+		DimFg:          ac("242", "246"),
+		ClaudeFg:       ac("25", "110"),
+		CodexFg:        ac("130", "173"),
+		WorkspaceFg:    ac("28", "150"),
+		StarFg:         ac("136", "222"),
+		RunningFg:      ac("28", "150"),
+		DateFg:         ac("242", "246"),
+		ClaudeBadgeFg:  ac("255", "255"),
+		ClaudeBadgeBg:  ac("67", "67"),
+		CodexBadgeFg:   ac("255", "255"),
+		CodexBadgeBg:   ac("173", "173"),
+		PreviewTitleFg: ac("25", "110"),
+		PreviewLabelFg: ac("240", "250"),
+		PreviewValueFg: ac("234", "255"),
+		StatusFg:       ac("240", "246"),
+		StatusBg:       ac("253", "236"),
+		StatusKeyFg:    ac("25", "110"),
 	},
 }
 
