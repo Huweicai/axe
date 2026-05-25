@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"sync"
+
 	"github.com/Huweicai/axe/provider"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -49,7 +51,53 @@ func (m *Model) handleDeepSearchDone(msg deepSearchDone) {
 }
 
 // DeepSearch concurrently searches all sessions across all providers.
-// Stub — full implementation in commit 3.
+// It spawns goroutines (bounded by a semaphore of 8) to call SearchContent
+// on each session and collects matching results.
 func DeepSearch(providers []provider.Provider, keyword string) []SearchResult {
-	return nil
+	// Collect all sessions from all providers
+	type sessionRef struct {
+		provider provider.Provider
+		session  provider.Session
+	}
+	var refs []sessionRef
+	for _, p := range providers {
+		sessions, err := p.ListSessions()
+		if err != nil {
+			continue
+		}
+		for _, s := range sessions {
+			refs = append(refs, sessionRef{provider: p, session: s})
+		}
+	}
+
+	var (
+		mu      sync.Mutex
+		results []SearchResult
+		wg      sync.WaitGroup
+		sem     = make(chan struct{}, 8) // concurrency limiter
+	)
+
+	for _, ref := range refs {
+		wg.Add(1)
+		go func(r sessionRef) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			matches, err := r.provider.SearchContent(r.session.ID, keyword)
+			if err != nil || len(matches) == 0 {
+				return
+			}
+			mu.Lock()
+			results = append(results, SearchResult{
+				SessionID: r.session.ID,
+				Source:    r.session.Source,
+				Matches:   matches,
+			})
+			mu.Unlock()
+		}(ref)
+	}
+
+	wg.Wait()
+	return results
 }
