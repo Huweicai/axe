@@ -1,0 +1,5 @@
+{"type":"permission-mode","permissionMode":"default","sessionId":"abc123"}
+{"parentUuid":null,"isSidechain":false,"attachment":{"type":"hook_success"},"type":"attachment","uuid":"u1","timestamp":1700000000000,"cwd":"/Users/test/myproject","sessionId":"abc123"}
+{"parentUuid":"u1","isSidechain":false,"type":"user","message":{"role":"user","content":[{"type":"text","text":"Help me refactor the auth module"}]},"uuid":"u2","timestamp":1700000001000,"cwd":"/Users/test/myproject","sessionId":"abc123"}
+{"parentUuid":"u2","isSidechain":false,"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"I'll help with that."}]},"uuid":"u3","timestamp":1700000002000,"cwd":"/Users/test/myproject","sessionId":"abc123"}
+{"parentUuid":"u3","isSidechain":false,"type":"user","message":{"role":"user","content":[{"type":"text","text":"Now add tests for it"}]},"uuid":"u4","timestamp":1700000003000,"cwd":"/Users/test/myproject","sessionId":"abc123"}
