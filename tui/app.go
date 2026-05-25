@@ -93,13 +93,27 @@ func (m Model) ExecDir() string {
 	return m.execDir
 }
 
-// ExecReplace chdir's to dir then replaces the current process with args.
-func ExecReplace(dir string, args []string) error {
+// ExecEnv returns extra env vars for the tool being launched.
+func (m Model) ExecEnv() map[string]string {
+	if len(m.execArgs) == 0 || m.config == nil {
+		return nil
+	}
+	if tc := m.config.GetToolConfig(m.execArgs[0]); tc != nil {
+		return tc.Env
+	}
+	return nil
+}
+
+// ExecReplace chdir's to dir, injects env vars, then replaces the current process.
+func ExecReplace(dir string, args []string, extraEnv map[string]string) error {
 	if len(args) == 0 {
 		return nil
 	}
 	if dir != "" {
 		os.Chdir(dir)
+	}
+	for k, v := range extraEnv {
+		os.Setenv(k, v)
 	}
 	bin, err := exec.LookPath(args[0])
 	if err != nil {
@@ -460,7 +474,7 @@ func (m Model) execSelected(altTool bool) (tea.Model, tea.Cmd) {
 		if altTool {
 			tool = m.altTool()
 		}
-		m.execArgs = providerNewCommand(tool, sel.Path)
+		m.execArgs = m.buildNewCommand(tool, sel.Path)
 	case KindSession:
 		if altTool {
 			return m, nil
@@ -468,7 +482,7 @@ func (m Model) execSelected(altTool bool) (tea.Model, tea.Cmd) {
 		if sel.Session != nil {
 			m.execDir = sel.Session.Directory
 		}
-		m.execArgs = m.providerResumeCommand(sel.Session)
+		m.execArgs = m.buildResumeCommand(sel.Session)
 	}
 
 	return m, tea.Quit
@@ -488,17 +502,22 @@ func (m Model) altTool() string {
 	return "claude"
 }
 
-func providerNewCommand(tool, cwd string) []string {
-	if tool == "codex" {
-		return []string{"codex", "--cwd", cwd}
+func (m Model) buildNewCommand(tool, cwd string) []string {
+	args := []string{tool, "--cwd", cwd}
+	if tc := m.config.GetToolConfig(tool); tc != nil {
+		args = append(args, tc.ExtraArgs...)
 	}
-	return []string{"claude", "--cwd", cwd}
+	return args
 }
 
-func (m Model) providerResumeCommand(s *provider.Session) []string {
+func (m Model) buildResumeCommand(s *provider.Session) []string {
 	for _, p := range m.providers {
 		if p.Name() == s.Source {
-			return p.ResumeCommand(s.ID)
+			args := p.ResumeCommand(s.ID)
+			if tc := m.config.GetToolConfig(s.Source); tc != nil {
+				args = append(args, tc.ExtraArgs...)
+			}
+			return args
 		}
 	}
 	return nil

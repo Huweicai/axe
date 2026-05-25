@@ -11,11 +11,26 @@ type Workspace struct {
 	Path  string `json:"path"`
 }
 
+type ToolConfig struct {
+	ExtraArgs []string          `json:"extra_args,omitempty"`
+	Env       map[string]string `json:"env,omitempty"`
+}
+
 type Config struct {
-	DefaultTool      string            `json:"default_tool"`
-	Theme            string            `json:"theme,omitempty"`
-	DirAliases       map[string]string `json:"dir_aliases,omitempty"`
-	PinnedWorkspaces []Workspace       `json:"pinned_workspaces"`
+	DefaultTool      string                 `json:"default_tool"`
+	Theme            string                 `json:"theme,omitempty"`
+	DirAliases       map[string]string      `json:"dir_aliases,omitempty"`
+	Tools            map[string]*ToolConfig `json:"tools,omitempty"`
+	PinnedWorkspaces []Workspace            `json:"pinned_workspaces"`
+}
+
+func (c *Config) GetToolConfig(tool string) *ToolConfig {
+	if c.Tools != nil {
+		if tc, ok := c.Tools[tool]; ok {
+			return tc
+		}
+	}
+	return nil
 }
 
 func (c *Config) DirAlias(path string) string {

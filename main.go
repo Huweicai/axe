@@ -461,7 +461,7 @@ func cmdTUI() {
 
 	if m, ok := finalModel.(tui.Model); ok {
 		if args := m.ExecArgs(); len(args) > 0 {
-			if err := tui.ExecReplace(m.ExecDir(), args); err != nil {
+			if err := tui.ExecReplace(m.ExecDir(), args, m.ExecEnv()); err != nil {
 				fmt.Fprintf(os.Stderr, "exec error: %v\n", err)
 				os.Exit(1)
 			}
