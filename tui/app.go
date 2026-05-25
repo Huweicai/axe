@@ -423,7 +423,7 @@ func (m *Model) refreshSnippets() {
 	m.previewSessionID = sid
 	for _, p := range m.providers {
 		if p.Name() == sel.Session.Source {
-			snips, count, err := p.GetSnippets(sid, 3, 2)
+			snips, count, err := p.GetSnippets(sid, 20, 20)
 			if err == nil {
 				m.previewSnippets = snips
 				m.previewMsgCount = count
