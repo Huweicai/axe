@@ -30,11 +30,30 @@ type claudeMessage struct {
 }
 
 type claudeInnerMessage struct {
-	Role    string `json:"role"`
-	Content []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	} `json:"content"`
+	Role    string          `json:"role"`
+	Content json.RawMessage `json:"content"`
+}
+
+type claudeContentBlock struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+func (m *claudeInnerMessage) extractText() string {
+	// content can be a plain string or a list of blocks
+	var plainStr string
+	if err := json.Unmarshal(m.Content, &plainStr); err == nil {
+		return plainStr
+	}
+	var blocks []claudeContentBlock
+	if err := json.Unmarshal(m.Content, &blocks); err == nil {
+		for _, b := range blocks {
+			if b.Type == "text" && b.Text != "" {
+				return b.Text
+			}
+		}
+	}
+	return ""
 }
 
 func (p *ClaudeProvider) ListSessions() ([]Session, error) {
@@ -104,12 +123,21 @@ func claudeExtractMeta(filePath string) (cwd, title string) {
 		if title == "" && msg.Type == "user" && !msg.IsMeta {
 			var inner claudeInnerMessage
 			if err := json.Unmarshal(msg.Message, &inner); err == nil {
-				for _, c := range inner.Content {
-					if c.Type == "text" &&
-						!strings.HasPrefix(c.Text, "<command-") &&
-						!strings.HasPrefix(c.Text, "Base directory") {
-						title = c.Text
-						break
+				t := strings.TrimSpace(inner.extractText())
+				if t != "" {
+					skip := strings.HasPrefix(t, "<") ||
+						strings.HasPrefix(t, "[Request interrupted") ||
+						strings.HasPrefix(t, "[Image") ||
+						strings.HasPrefix(t, "Base directory") ||
+						strings.HasPrefix(t, "$superpowers:")
+					if !skip {
+						// First line only, replace remaining newlines
+						t = strings.ReplaceAll(t, "\n", " ")
+						t = strings.Join(strings.Fields(t), " ")
+						if len([]rune(t)) > 100 {
+							t = string([]rune(t)[:100]) + ".."
+						}
+						title = t
 					}
 				}
 			}
@@ -153,14 +181,13 @@ func (p *ClaudeProvider) SearchContent(sessionID, keyword string) ([]Match, erro
 		if err := json.Unmarshal(msg.Message, &inner); err != nil {
 			continue
 		}
-		for _, c := range inner.Content {
-			if c.Type == "text" && strings.Contains(strings.ToLower(c.Text), lower) {
-				matches = append(matches, Match{
-					SessionID: sessionID,
-					Line:      c.Text,
-					LineNum:   lineNum,
-				})
-			}
+		text := inner.extractText()
+		if text != "" && strings.Contains(strings.ToLower(text), lower) {
+			matches = append(matches, Match{
+				SessionID: sessionID,
+				Line:      text,
+				LineNum:   lineNum,
+			})
 		}
 	}
 	return matches, scanner.Err()

@@ -427,68 +427,42 @@ func (m Model) View() string {
 	header := m.renderHeader(m.width)
 	statusBar := m.renderStatusBar(m.width)
 
-	// Split: 55% list, 45% preview
 	listWidth := m.width * 55 / 100
 	previewWidth := m.width - listWidth
-	bodyHeight := m.height - 3 // header + status bar + separator
+	bodyHeight := m.height - 3
 
-	// Build list rows
-	var listLines []string
-	if m.grouped {
-		listLines = m.renderGroupedList(listWidth, bodyHeight)
-	} else {
-		for i, fi := range m.filtered {
-			if i >= bodyHeight {
-				break
-			}
-			listLines = append(listLines, m.renderListRow(fi, listWidth, i == m.cursor))
-		}
+	// Scroll offset so cursor stays visible
+	start := 0
+	if m.cursor >= bodyHeight {
+		start = m.cursor - bodyHeight + 1
 	}
-	// Pad list to bodyHeight
+
+	rowStyle := lipgloss.NewStyle().Width(listWidth).MaxWidth(listWidth)
+	var listLines []string
+
+	visible := m.filtered
+	if start < len(visible) {
+		visible = visible[start:]
+	}
+	for i, fi := range visible {
+		if len(listLines) >= bodyHeight {
+			break
+		}
+		isCursor := (i + start) == m.cursor
+		line := m.renderListRow(fi, listWidth, isCursor)
+		listLines = append(listLines, rowStyle.Render(line))
+	}
 	for len(listLines) < bodyHeight {
-		listLines = append(listLines, "")
+		listLines = append(listLines, rowStyle.Render(""))
 	}
 
 	listPane := strings.Join(listLines, "\n")
-	previewPane := m.renderPreview(previewWidth)
+
+	previewStyle := previewBorder.Width(previewWidth - 2).Height(bodyHeight)
+	previewContent := m.renderPreviewContent(previewWidth - 4)
+	previewPane := previewStyle.Render(previewContent)
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top, listPane, previewPane)
 
 	return header + "\n" + body + "\n" + statusBar
-}
-
-// renderGroupedList renders sessions grouped by directory with headers.
-func (m *Model) renderGroupedList(listWidth, maxRows int) []string {
-	var lines []string
-	lastDir := ""
-	row := 0
-
-	for i, fi := range m.filtered {
-		if row >= maxRows {
-			break
-		}
-		it := m.items[fi]
-
-		if it.Kind == KindSession && it.Path != lastDir {
-			// Directory header
-			if row > 0 {
-				lines = append(lines, "")
-				row++
-				if row >= maxRows {
-					break
-				}
-			}
-			dirLabel := dimStyle.Render("── " + shortenPath(it.Path, listWidth-5) + " ──")
-			lines = append(lines, dirLabel)
-			row++
-			lastDir = it.Path
-			if row >= maxRows {
-				break
-			}
-		}
-
-		lines = append(lines, m.renderListRow(fi, listWidth, i == m.cursor))
-		row++
-	}
-	return lines
 }

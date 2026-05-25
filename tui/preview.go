@@ -7,15 +7,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// renderPreview renders the right-side detail pane for the selected item.
-func (m *Model) renderPreview(width int) string {
+// renderPreviewContent renders the content for the right-side detail pane (no border).
+func (m *Model) renderPreviewContent(width int) string {
 	sel := m.selected()
 	if sel == nil {
 		return dimStyle.Render("no selection")
 	}
 
 	var lines []string
-	contentWidth := width - 3 // account for border + padding
 
 	switch sel.Kind {
 	case KindWorkspace:
@@ -23,7 +22,7 @@ func (m *Model) renderPreview(width int) string {
 			workspaceStyle.Render("☆ Workspace"),
 			"",
 			fmt.Sprintf("Alias: %s", sel.Alias),
-			fmt.Sprintf("Path:  %s", shortenPath(sel.Path, contentWidth-7)),
+			fmt.Sprintf("Path:  %s", shortenPath(sel.Path, width-7)),
 		)
 		if sel.Running {
 			lines = append(lines, "", runningStyle.Render("● running"))
@@ -39,7 +38,6 @@ func (m *Model) renderPreview(width int) string {
 			break
 		}
 
-		// Source badge
 		srcStyle := sourceClaudeStyle
 		if s.Source == "codex" {
 			srcStyle = sourceCodexStyle
@@ -47,7 +45,7 @@ func (m *Model) renderPreview(width int) string {
 		lines = append(lines,
 			srcStyle.Render("Source: "+s.Source),
 			"",
-			fmt.Sprintf("Dir:     %s", shortenPath(s.Directory, contentWidth-10)),
+			fmt.Sprintf("Dir:     %s", shortenPath(s.Directory, width-10)),
 			fmt.Sprintf("Updated: %s", s.UpdatedAt.Format("2006-01-02 15:04")),
 			fmt.Sprintf("Size:    %s", formatSize(s.FileSize)),
 		)
@@ -60,14 +58,12 @@ func (m *Model) renderPreview(width int) string {
 		if sel.Done {
 			lines = append(lines, "", dimStyle.Render("✓ done"))
 		}
-		// Show title as first-message preview
 		if s.Title != "" {
-			lines = append(lines, "", dimStyle.Render("> "+truncate(s.Title, contentWidth-3)))
+			lines = append(lines, "", dimStyle.Render("> "+truncate(s.Title, width-3)))
 		}
 	}
 
-	content := strings.Join(lines, "\n")
-	return previewBorder.Width(width - 2).Render(content)
+	return strings.Join(lines, "\n")
 }
 
 // formatSize formats a byte count into a human-readable string.

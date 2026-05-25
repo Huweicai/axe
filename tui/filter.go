@@ -5,22 +5,32 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
-// truncate trims s to maxLen runes, appending ".." if truncated.
+// truncate trims s to maxLen visual columns, appending ".." if truncated.
 func truncate(s string, maxLen int) string {
 	if maxLen <= 0 {
 		return ""
 	}
-	count := utf8.RuneCountInString(s)
-	if count <= maxLen {
+	w := lipgloss.Width(s)
+	if w <= maxLen {
 		return s
 	}
 	if maxLen <= 2 {
 		return ".."
 	}
 	runes := []rune(s)
-	return string(runes[:maxLen-2]) + ".."
+	result := ""
+	for _, r := range runes {
+		test := result + string(r)
+		if lipgloss.Width(test) > maxLen-2 {
+			return result + ".."
+		}
+		result = test
+	}
+	return result + ".."
 }
 
 // shortenPath replaces $HOME with ~ and collapses middle segments if too long.
