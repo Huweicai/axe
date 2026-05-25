@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -165,29 +166,44 @@ func (m *Model) renderListRow(idx int, listWidth int, isCurrent bool) string {
 	return normalRowStyle.Width(listWidth).Render(m.renderRowStyled(it, contentWidth))
 }
 
-func sessionRowLayout(it ListItem, w int) (prefix, titleStr, date string, titleWidth int) {
-	// Fixed layout: " ● source  " (12 cols) | title (flex) | " MM/DD" (6 cols)
-	const prefixCols = 12
+type rowLayout struct {
+	ind, src, star, dirName, title, date string
+	titleWidth                           int
+}
+
+func sessionRowLayout(it ListItem, w int) rowLayout {
+	// " ● source  dirname  title.......  MM/DD"
+	//  1+1+1+6+2 = 11 prefix | 2+dirW = dir col | flex title | 1+5 date
+	const dirWidth = 12
 	const dateCols = 6
 
-	ind := " "
+	r := rowLayout{}
+	r.ind = " "
 	if it.Running {
-		ind = "●"
+		r.ind = "●"
 	}
-	star := ""
+	r.src = fmt.Sprintf("%-6s", it.Source())
+	if it.Starred {
+		r.star = "★ "
+	}
+	r.date = it.UpdatedAt().Format("1/02")
+	r.title = it.Title()
+
+	dir := filepath.Base(it.Path)
+	if dir == "." || dir == "/" {
+		dir = ""
+	}
+	r.dirName = truncate(dir, dirWidth)
+
 	starCols := 0
 	if it.Starred {
-		star = "★ "
 		starCols = 3
 	}
-	prefix = fmt.Sprintf(" %s %-6s %s", ind, it.Source(), star)
-	date = it.UpdatedAt().Format("1/02")
-	titleWidth = w - prefixCols - dateCols - starCols
-	if titleWidth < 8 {
-		titleWidth = 8
+	r.titleWidth = w - 11 - dirWidth - 2 - dateCols - starCols
+	if r.titleWidth < 8 {
+		r.titleWidth = 8
 	}
-	titleStr = it.Title()
-	return
+	return r
 }
 
 func padToWidth(s string, targetWidth int) string {
@@ -203,8 +219,10 @@ func (m *Model) renderRowPlain(it ListItem, w int) string {
 	case KindWorkspace:
 		return fmt.Sprintf(" ★ %s  %s", truncate(it.Alias, 14), shortenPath(it.Path, w-18))
 	case KindSession:
-		prefix, title, date, titleW := sessionRowLayout(it, w)
-		return prefix + padToWidth(truncate(title, titleW), titleW) + " " + date
+		r := sessionRowLayout(it, w)
+		dir := padToWidth(r.dirName, 12)
+		title := padToWidth(truncate(r.title, r.titleWidth), r.titleWidth)
+		return fmt.Sprintf(" %s %s %s%s %s %s", r.ind, r.src, r.star, dir, title, r.date)
 	}
 	return ""
 }
@@ -217,7 +235,7 @@ func (m *Model) renderRowStyled(it ListItem, w int) string {
 		path := dimStyle.Render(shortenPath(it.Path, w-18))
 		return fmt.Sprintf(" %s %s  %s", icon, alias, path)
 	case KindSession:
-		_, title, dateStr, titleW := sessionRowLayout(it, w)
+		r := sessionRowLayout(it, w)
 
 		src := sourceClaudeStyle.Render("claude")
 		if it.Source() == "codex" {
@@ -232,9 +250,10 @@ func (m *Model) renderRowStyled(it ListItem, w int) string {
 			ind = runningStyle.Render("●")
 		}
 
-		styledTitle := padToWidth(truncate(title, titleW), titleW)
-		date := dateStyle.Render(dateStr)
-		return fmt.Sprintf(" %s %s %s%s %s", ind, src, star, styledTitle, date)
+		dir := dimStyle.Render(padToWidth(r.dirName, 12))
+		title := padToWidth(truncate(r.title, r.titleWidth), r.titleWidth)
+		date := dateStyle.Render(r.date)
+		return fmt.Sprintf(" %s %s %s%s %s %s", ind, src, star, dir, title, date)
 	}
 	return ""
 }
