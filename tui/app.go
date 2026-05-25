@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"os/exec"
 	"sort"
 	"strings"
@@ -51,6 +52,7 @@ type Model struct {
 	config    *state.Config
 	running   map[string]bool
 	execArgs  []string // set before quitting to exec after tea exits
+	execDir   string   // chdir here before exec
 }
 
 // New creates a Model populated with workspace and session items.
@@ -79,10 +81,18 @@ func (m Model) ExecArgs() []string {
 	return m.execArgs
 }
 
-// ExecReplace replaces the current process with the given command.
-func ExecReplace(args []string) error {
+// ExecDir returns the directory to chdir into before exec.
+func (m Model) ExecDir() string {
+	return m.execDir
+}
+
+// ExecReplace chdir's to dir then replaces the current process with args.
+func ExecReplace(dir string, args []string) error {
 	if len(args) == 0 {
 		return nil
+	}
+	if dir != "" {
+		os.Chdir(dir)
 	}
 	bin, err := exec.LookPath(args[0])
 	if err != nil {
@@ -370,6 +380,7 @@ func (m Model) execSelected(altTool bool) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	m.execDir = sel.Path
 	switch sel.Kind {
 	case KindWorkspace:
 		tool := m.defaultTool()
@@ -379,8 +390,10 @@ func (m Model) execSelected(altTool bool) (tea.Model, tea.Cmd) {
 		m.execArgs = providerNewCommand(tool, sel.Path)
 	case KindSession:
 		if altTool {
-			// no alt for sessions — ignore
 			return m, nil
+		}
+		if sel.Session != nil {
+			m.execDir = sel.Session.Directory
 		}
 		m.execArgs = m.providerResumeCommand(sel.Session)
 	}
