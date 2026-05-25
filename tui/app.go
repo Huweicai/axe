@@ -520,10 +520,29 @@ func (m Model) View() string {
 	if start < len(visible) {
 		visible = visible[start:]
 	}
+
+	sectionSep := dimStyle.Render(strings.Repeat("─", listWidth))
+	prevSection := -1 // 0=workspace, 1=starred, 2=regular
+
 	for i, fi := range visible {
 		if len(listLines) >= bodyHeight {
 			break
 		}
+		it := m.items[fi]
+		section := 2
+		if it.Kind == KindWorkspace {
+			section = 0
+		} else if it.Starred {
+			section = 1
+		}
+		if prevSection >= 0 && section != prevSection && len(listLines) > 0 {
+			listLines = append(listLines, sectionSep)
+			if len(listLines) >= bodyHeight {
+				break
+			}
+		}
+		prevSection = section
+
 		isCursor := (i + start) == m.cursor
 		listLines = append(listLines, m.renderListRow(fi, listWidth, isCursor))
 	}
