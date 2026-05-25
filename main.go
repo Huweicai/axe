@@ -97,7 +97,9 @@ func loadContext() *context {
 
 	var providers []provider.Provider
 	if _, err := os.Stat(filepath.Join(claudeDir, "projects")); err == nil {
-		providers = append(providers, provider.NewClaudeProvider(claudeDir))
+		cp := provider.NewClaudeProvider(claudeDir)
+		cp.SetCacheDir(axeDir)
+		providers = append(providers, cp)
 	}
 	if _, err := os.Stat(filepath.Join(codexDir, "session_index.jsonl")); err == nil {
 		providers = append(providers, provider.NewCodexProvider(codexDir))

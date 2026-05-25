@@ -9,16 +9,48 @@ import (
 	"time"
 )
 
+type metaCacheEntry struct {
+	Cwd   string `json:"c"`
+	Title string `json:"t"`
+	Mtime int64  `json:"m"`
+}
+
 // ClaudeProvider reads sessions from ~/.claude/projects/
 type ClaudeProvider struct {
 	baseDir    string
-	nameCache  map[string]string // sessionID → user-set name from sessions/*.json
-	activeIDs  map[string]string // sessionID → status ("idle"/"busy") from sessions/*.json
+	nameCache  map[string]string         // sessionID → user-set name from sessions/*.json
+	activeIDs  map[string]string         // sessionID → status ("idle"/"busy") from sessions/*.json
+	metaCache  map[string]metaCacheEntry // filePath → cached {cwd, title, mtime}
 	cacheReady bool
+	cacheDir   string // where to persist metaCache (e.g. ~/.axe/)
 }
 
 func NewClaudeProvider(baseDir string) *ClaudeProvider {
-	return &ClaudeProvider{baseDir: baseDir}
+	return &ClaudeProvider{baseDir: baseDir, metaCache: make(map[string]metaCacheEntry)}
+}
+
+func (p *ClaudeProvider) SetCacheDir(dir string) {
+	p.cacheDir = dir
+	p.loadMetaCache()
+}
+
+func (p *ClaudeProvider) loadMetaCache() {
+	if p.cacheDir == "" {
+		return
+	}
+	data, err := os.ReadFile(filepath.Join(p.cacheDir, "session_cache.json"))
+	if err != nil {
+		return
+	}
+	json.Unmarshal(data, &p.metaCache)
+}
+
+func (p *ClaudeProvider) saveMetaCache() {
+	if p.cacheDir == "" {
+		return
+	}
+	data, _ := json.Marshal(p.metaCache)
+	os.WriteFile(filepath.Join(p.cacheDir, "session_cache.json"), data, 0644)
 }
 
 // claudeSessionJSON represents a session metadata file in ~/.claude/sessions/*.json
@@ -120,6 +152,7 @@ func (p *ClaudeProvider) ListSessions() ([]Session, error) {
 		return nil, err
 	}
 
+	dirty := false
 	var sessions []Session
 	for _, pd := range projectDirs {
 		if !pd.IsDir() {
@@ -141,8 +174,17 @@ func (p *ClaudeProvider) ListSessions() ([]Session, error) {
 			if err != nil {
 				continue
 			}
+			mtime := info.ModTime().Unix()
 
-			cwd, title := claudeExtractMeta(filePath)
+			var cwd, title string
+			if cached, ok := p.metaCache[filePath]; ok && cached.Mtime == mtime {
+				cwd, title = cached.Cwd, cached.Title
+			} else {
+				cwd, title = claudeExtractMeta(filePath)
+				p.metaCache[filePath] = metaCacheEntry{Cwd: cwd, Title: title, Mtime: mtime}
+				dirty = true
+			}
+
 			if name, ok := p.nameCache[sessionID]; ok {
 				title = name
 			}
@@ -159,6 +201,9 @@ func (p *ClaudeProvider) ListSessions() ([]Session, error) {
 				FileSize:  info.Size(),
 			})
 		}
+	}
+	if dirty {
+		p.saveMetaCache()
 	}
 	return sessions, nil
 }

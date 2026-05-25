@@ -140,8 +140,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case snippetsLoaded:
-		if msg.sessionID == m.previewSessionID || m.previewSessionID == "" {
-			m.previewSessionID = msg.sessionID
+		if msg.sessionID == m.previewSessionID {
 			m.previewSnippets = msg.snippets
 			m.previewMsgCount = msg.msgCount
 		}
@@ -435,15 +434,21 @@ type snippetsLoaded struct {
 	msgCount  int
 }
 
-func (m Model) loadSnippetsCmd() tea.Cmd {
+func (m *Model) loadSnippetsCmd() tea.Cmd {
 	sel := m.selected()
 	if sel == nil || sel.Kind != KindSession || sel.Session == nil {
+		m.previewSessionID = ""
+		m.previewSnippets = nil
+		m.previewMsgCount = 0
 		return nil
 	}
 	sid := sel.Session.ID
 	if sid == m.previewSessionID {
 		return nil
 	}
+	m.previewSessionID = sid
+	m.previewSnippets = nil
+	m.previewMsgCount = 0
 	source := sel.Session.Source
 	providers := m.providers
 	return func() tea.Msg {
