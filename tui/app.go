@@ -508,7 +508,7 @@ func (m Model) altTool() string {
 }
 
 func (m Model) buildNewCommand(tool, cwd string) []string {
-	args := []string{tool, "--cwd", cwd}
+	args := []string{tool}
 	if tc := m.config.GetToolConfig(tool); tc != nil {
 		args = append(args, tc.ExtraArgs...)
 	}
