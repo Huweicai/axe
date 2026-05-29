@@ -42,6 +42,7 @@ type Model struct {
 	width     int
 	height    int
 	filter    sourceFilter
+	dirFilter string // when set, only show sessions in this directory
 	showDone  bool
 	grouped   bool
 	deepMode  bool
@@ -199,6 +200,11 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.applyFilter()
 			return m, nil
 		}
+		if m.dirFilter != "" {
+			m.dirFilter = ""
+			m.applyFilter()
+			return m, nil
+		}
 		return m, tea.Quit
 
 	case key.Matches(msg, keys.Enter):
@@ -256,6 +262,15 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			case 's':
 				m.toggleStar()
 				return m, nil
+			case 'f':
+				// Toggle directory filter by selected row's path
+				if m.dirFilter != "" {
+					m.dirFilter = ""
+				} else if sel := m.selected(); sel != nil && sel.Path != "" {
+					m.dirFilter = sel.Path
+				}
+				m.applyFilter()
+				return m, m.loadSnippetsCmd()
 			case 'n':
 				if sel := m.selected(); sel != nil && sel.Kind == KindSession {
 					m.noteInput = true
@@ -364,6 +379,10 @@ func (m *Model) applyFilter() {
 			continue
 		}
 		if m.filter == filterCodex && it.Source() != "" && it.Source() != "codex" {
+			continue
+		}
+		// directory filter
+		if m.dirFilter != "" && it.Path != m.dirFilter {
 			continue
 		}
 		// done filter

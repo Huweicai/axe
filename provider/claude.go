@@ -38,7 +38,7 @@ func (p *ClaudeProvider) loadMetaCache() {
 	if p.cacheDir == "" {
 		return
 	}
-	data, err := os.ReadFile(filepath.Join(p.cacheDir, "session_cache.json"))
+	data, err := os.ReadFile(filepath.Join(p.cacheDir, "session_cache_v2.json"))
 	if err != nil {
 		return
 	}
@@ -50,7 +50,7 @@ func (p *ClaudeProvider) saveMetaCache() {
 		return
 	}
 	data, _ := json.Marshal(p.metaCache)
-	os.WriteFile(filepath.Join(p.cacheDir, "session_cache.json"), data, 0644)
+	os.WriteFile(filepath.Join(p.cacheDir, "session_cache_v2.json"), data, 0644)
 }
 
 // claudeSessionJSON represents a session metadata file in ~/.claude/sessions/*.json
@@ -209,7 +209,7 @@ func (p *ClaudeProvider) ListSessions() ([]Session, error) {
 }
 
 // claudeExtractMeta reads a session file and returns (cwd, title).
-// title = first non-meta user message text.
+// Title priority: ai-title (Claude's own/renamed title) > first user message.
 func claudeExtractMeta(filePath string) (cwd, title string) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -220,15 +220,25 @@ func claudeExtractMeta(filePath string) (cwd, title string) {
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
+	var aiTitle, firstMsg string
 	for scanner.Scan() {
-		var msg claudeMessage
+		var msg struct {
+			Type    string          `json:"type"`
+			IsMeta  bool            `json:"isMeta"`
+			Cwd     string          `json:"cwd"`
+			AiTitle string          `json:"aiTitle"`
+			Message json.RawMessage `json:"message"`
+		}
 		if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
 			continue
 		}
 		if cwd == "" && msg.Cwd != "" {
 			cwd = msg.Cwd
 		}
-		if title == "" && msg.Type == "user" && !msg.IsMeta {
+		if msg.Type == "ai-title" && msg.AiTitle != "" {
+			aiTitle = strings.TrimSpace(msg.AiTitle)
+		}
+		if firstMsg == "" && msg.Type == "user" && !msg.IsMeta {
 			var inner claudeInnerMessage
 			if err := json.Unmarshal(msg.Message, &inner); err == nil {
 				t := strings.TrimSpace(inner.extractText())
@@ -239,20 +249,21 @@ func claudeExtractMeta(filePath string) (cwd, title string) {
 						strings.HasPrefix(t, "Base directory") ||
 						strings.HasPrefix(t, "$superpowers:")
 					if !skip {
-						// First line only, replace remaining newlines
 						t = strings.ReplaceAll(t, "\n", " ")
 						t = strings.Join(strings.Fields(t), " ")
 						if len([]rune(t)) > 100 {
 							t = string([]rune(t)[:100]) + ".."
 						}
-						title = t
+						firstMsg = t
 					}
 				}
 			}
 		}
-		if cwd != "" && title != "" {
-			break
-		}
+	}
+	if aiTitle != "" {
+		title = aiTitle
+	} else {
+		title = firstMsg
 	}
 	return
 }

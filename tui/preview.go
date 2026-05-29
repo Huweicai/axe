@@ -129,6 +129,13 @@ func (m *Model) renderHeader(width int) string {
 	if m.filter != filterAll {
 		right += " " + m.filter.String()
 	}
+	if m.dirFilter != "" {
+		name := m.config.DirAlias(m.dirFilter)
+		if name == "" {
+			name = filepath.Base(m.dirFilter)
+		}
+		right += " 📁" + name
+	}
 
 	gap := width - lipgloss.Width(left) - lipgloss.Width(right) - 2
 	if gap < 1 {
@@ -145,8 +152,8 @@ func (m *Model) renderStatusBar(width int) string {
 		{"s", "star"},
 		{"d", "done"},
 		{"/", "search"},
-		{"tab", "filter"},
-		{"^a", "show done"},
+		{"tab", "src"},
+		{"f", "dir"},
 		{"q", "quit"},
 	}
 	var parts []string
