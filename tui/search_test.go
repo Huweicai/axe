@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/Huweicai/axe/provider"
 )
@@ -17,7 +18,7 @@ func TestDeepSearch_Claude(t *testing.T) {
 	baseDir := filepath.Join(testdataDir(), "claude")
 	p := provider.NewClaudeProvider(baseDir)
 
-	results := DeepSearch([]provider.Provider{p}, "refactor")
+	results := DeepSearch([]provider.Provider{p}, "refactor", time.Time{})
 
 	if len(results) == 0 {
 		t.Fatal("expected at least 1 result, got 0")
@@ -41,7 +42,7 @@ func TestDeepSearch_NoMatch(t *testing.T) {
 	baseDir := filepath.Join(testdataDir(), "claude")
 	p := provider.NewClaudeProvider(baseDir)
 
-	results := DeepSearch([]provider.Provider{p}, "zzz_nonexistent_keyword_zzz")
+	results := DeepSearch([]provider.Provider{p}, "zzz_nonexistent_keyword_zzz", time.Time{})
 
 	if len(results) != 0 {
 		t.Fatalf("expected 0 results for nonsense keyword, got %d", len(results))
@@ -55,7 +56,7 @@ func TestDeepSearch_MultipleProviders(t *testing.T) {
 	xp := provider.NewCodexProvider(codexDir)
 
 	// "cache" appears in codex testdata ("优化下单链路的 cache miss")
-	results := DeepSearch([]provider.Provider{cp, xp}, "cache")
+	results := DeepSearch([]provider.Provider{cp, xp}, "cache", time.Time{})
 
 	if len(results) == 0 {
 		t.Fatal("expected at least 1 result for 'cache'")

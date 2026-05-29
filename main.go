@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -222,7 +223,7 @@ func cmdSearch(args []string) {
 	keyword := strings.Join(args, " ")
 	ctx := loadContext()
 
-	results := tui.DeepSearch(ctx.providers, keyword)
+	results := tui.DeepSearch(ctx.providers, keyword, time.Time{})
 	if len(results) == 0 {
 		fmt.Println("No matches found.")
 		return

@@ -2,10 +2,14 @@ package tui
 
 import (
 	"sync"
+	"time"
 
 	"github.com/Huweicai/axe/provider"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+// deepSearchDays bounds deep search to sessions updated within this window.
+const deepSearchDays = 7
 
 // SearchResult holds matches found in a single session during deep search.
 type SearchResult struct {
@@ -23,8 +27,9 @@ type deepSearchDone struct {
 func (m *Model) startDeepSearch() tea.Cmd {
 	q := m.query
 	providers := m.providers
+	cutoff := time.Now().AddDate(0, 0, -deepSearchDays)
 	return func() tea.Msg {
-		results := DeepSearch(providers, q)
+		results := DeepSearch(providers, q, cutoff)
 		return deepSearchDone{results: results}
 	}
 }
@@ -53,8 +58,8 @@ func (m *Model) handleDeepSearchDone(msg deepSearchDone) {
 // DeepSearch concurrently searches all sessions across all providers.
 // It spawns goroutines (bounded by a semaphore of 8) to call SearchContent
 // on each session and collects matching results.
-func DeepSearch(providers []provider.Provider, keyword string) []SearchResult {
-	// Collect all sessions from all providers
+func DeepSearch(providers []provider.Provider, keyword string, cutoff time.Time) []SearchResult {
+	// Collect sessions updated within the cutoff window
 	type sessionRef struct {
 		provider provider.Provider
 		session  provider.Session
@@ -66,6 +71,9 @@ func DeepSearch(providers []provider.Provider, keyword string) []SearchResult {
 			continue
 		}
 		for _, s := range sessions {
+			if !cutoff.IsZero() && s.UpdatedAt.Before(cutoff) {
+				continue
+			}
 			refs = append(refs, sessionRef{provider: p, session: s})
 		}
 	}
