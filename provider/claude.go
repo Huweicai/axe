@@ -10,9 +10,10 @@ import (
 )
 
 type metaCacheEntry struct {
-	Cwd   string `json:"c"`
-	Title string `json:"t"`
-	Mtime int64  `json:"m"`
+	Cwd       string `json:"c"`
+	Title     string `json:"t"`
+	Mtime     int64  `json:"m"`
+	UpdatedAt int64  `json:"u"` // unix sec of last message timestamp in the session
 }
 
 // ClaudeProvider reads sessions from ~/.claude/projects/
@@ -38,7 +39,7 @@ func (p *ClaudeProvider) loadMetaCache() {
 	if p.cacheDir == "" {
 		return
 	}
-	data, err := os.ReadFile(filepath.Join(p.cacheDir, "session_cache_v2.json"))
+	data, err := os.ReadFile(filepath.Join(p.cacheDir, "session_cache_v3.json"))
 	if err != nil {
 		return
 	}
@@ -50,7 +51,7 @@ func (p *ClaudeProvider) saveMetaCache() {
 		return
 	}
 	data, _ := json.Marshal(p.metaCache)
-	os.WriteFile(filepath.Join(p.cacheDir, "session_cache_v2.json"), data, 0644)
+	os.WriteFile(filepath.Join(p.cacheDir, "session_cache_v3.json"), data, 0644)
 }
 
 // claudeSessionJSON represents a session metadata file in ~/.claude/sessions/*.json
@@ -177,11 +178,12 @@ func (p *ClaudeProvider) ListSessions() ([]Session, error) {
 			mtime := info.ModTime().Unix()
 
 			var cwd, title string
+			var lastTS int64
 			if cached, ok := p.metaCache[filePath]; ok && cached.Mtime == mtime {
-				cwd, title = cached.Cwd, cached.Title
+				cwd, title, lastTS = cached.Cwd, cached.Title, cached.UpdatedAt
 			} else {
-				cwd, title = claudeExtractMeta(filePath)
-				p.metaCache[filePath] = metaCacheEntry{Cwd: cwd, Title: title, Mtime: mtime}
+				cwd, title, lastTS = claudeExtractMeta(filePath)
+				p.metaCache[filePath] = metaCacheEntry{Cwd: cwd, Title: title, Mtime: mtime, UpdatedAt: lastTS}
 				dirty = true
 			}
 
@@ -191,12 +193,16 @@ func (p *ClaudeProvider) ListSessions() ([]Session, error) {
 			if title == "" {
 				continue
 			}
+			updatedAt := info.ModTime()
+			if lastTS > 0 {
+				updatedAt = time.Unix(lastTS, 0)
+			}
 			sessions = append(sessions, Session{
 				ID:        sessionID,
 				Source:    "claude",
 				Title:     title,
 				Directory: cwd,
-				UpdatedAt: info.ModTime(),
+				UpdatedAt: updatedAt,
 				FilePath:  filePath,
 				FileSize:  info.Size(),
 			})
@@ -208,9 +214,10 @@ func (p *ClaudeProvider) ListSessions() ([]Session, error) {
 	return sessions, nil
 }
 
-// claudeExtractMeta reads a session file and returns (cwd, title).
+// claudeExtractMeta reads a session file and returns (cwd, title, lastTS).
 // Title priority: ai-title (Claude's own/renamed title) > first user message.
-func claudeExtractMeta(filePath string) (cwd, title string) {
+// lastTS = unix sec of the last message timestamp (real activity time).
+func claudeExtractMeta(filePath string) (cwd, title string, lastTS int64) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return
@@ -223,17 +230,31 @@ func claudeExtractMeta(filePath string) (cwd, title string) {
 	var aiTitle, firstMsg string
 	for scanner.Scan() {
 		var msg struct {
-			Type    string          `json:"type"`
-			IsMeta  bool            `json:"isMeta"`
-			Cwd     string          `json:"cwd"`
-			AiTitle string          `json:"aiTitle"`
-			Message json.RawMessage `json:"message"`
+			Type      string          `json:"type"`
+			IsMeta    bool            `json:"isMeta"`
+			Cwd       string          `json:"cwd"`
+			AiTitle   string          `json:"aiTitle"`
+			Timestamp json.RawMessage `json:"timestamp"`
+			Message   json.RawMessage `json:"message"`
 		}
 		if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
 			continue
 		}
 		if cwd == "" && msg.Cwd != "" {
 			cwd = msg.Cwd
+		}
+		if len(msg.Timestamp) > 0 {
+			var tsStr string
+			if json.Unmarshal(msg.Timestamp, &tsStr) == nil {
+				if t, err := time.Parse(time.RFC3339, tsStr); err == nil {
+					lastTS = t.Unix()
+				}
+			} else {
+				var tsNum int64
+				if json.Unmarshal(msg.Timestamp, &tsNum) == nil && tsNum > 0 {
+					lastTS = tsNum / 1000 // millis → sec
+				}
+			}
 		}
 		if msg.Type == "ai-title" && msg.AiTitle != "" {
 			aiTitle = strings.TrimSpace(msg.AiTitle)
