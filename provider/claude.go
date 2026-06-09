@@ -39,7 +39,7 @@ func (p *ClaudeProvider) loadMetaCache() {
 	if p.cacheDir == "" {
 		return
 	}
-	data, err := os.ReadFile(filepath.Join(p.cacheDir, "session_cache_v3.json"))
+	data, err := os.ReadFile(filepath.Join(p.cacheDir, "session_cache_v4.json"))
 	if err != nil {
 		return
 	}
@@ -51,7 +51,7 @@ func (p *ClaudeProvider) saveMetaCache() {
 		return
 	}
 	data, _ := json.Marshal(p.metaCache)
-	os.WriteFile(filepath.Join(p.cacheDir, "session_cache_v3.json"), data, 0644)
+	os.WriteFile(filepath.Join(p.cacheDir, "session_cache_v4.json"), data, 0644)
 }
 
 // claudeSessionJSON represents a session metadata file in ~/.claude/sessions/*.json
@@ -215,7 +215,7 @@ func (p *ClaudeProvider) ListSessions() ([]Session, error) {
 }
 
 // claudeExtractMeta reads a session file and returns (cwd, title, lastTS).
-// Title priority: ai-title (Claude's own/renamed title) > first user message.
+// Title priority: user-set title > ai-title > first user message.
 // lastTS = unix sec of the last message timestamp (real activity time).
 func claudeExtractMeta(filePath string) (cwd, title string, lastTS int64) {
 	f, err := os.Open(filePath)
@@ -227,15 +227,17 @@ func claudeExtractMeta(filePath string) (cwd, title string, lastTS int64) {
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
-	var aiTitle, firstMsg string
+	var customTitle, agentName, aiTitle, firstMsg string
 	for scanner.Scan() {
 		var msg struct {
-			Type      string          `json:"type"`
-			IsMeta    bool            `json:"isMeta"`
-			Cwd       string          `json:"cwd"`
-			AiTitle   string          `json:"aiTitle"`
-			Timestamp json.RawMessage `json:"timestamp"`
-			Message   json.RawMessage `json:"message"`
+			Type        string          `json:"type"`
+			IsMeta      bool            `json:"isMeta"`
+			Cwd         string          `json:"cwd"`
+			CustomTitle string          `json:"customTitle"`
+			AgentName   string          `json:"agentName"`
+			AiTitle     string          `json:"aiTitle"`
+			Timestamp   json.RawMessage `json:"timestamp"`
+			Message     json.RawMessage `json:"message"`
 		}
 		if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
 			continue
@@ -259,6 +261,12 @@ func claudeExtractMeta(filePath string) (cwd, title string, lastTS int64) {
 		if msg.Type == "ai-title" && msg.AiTitle != "" {
 			aiTitle = strings.TrimSpace(msg.AiTitle)
 		}
+		if msg.Type == "custom-title" && msg.CustomTitle != "" {
+			customTitle = strings.TrimSpace(msg.CustomTitle)
+		}
+		if msg.Type == "agent-name" && msg.AgentName != "" {
+			agentName = strings.TrimSpace(msg.AgentName)
+		}
 		if firstMsg == "" && msg.Type == "user" && !msg.IsMeta {
 			var inner claudeInnerMessage
 			if err := json.Unmarshal(msg.Message, &inner); err == nil {
@@ -281,7 +289,11 @@ func claudeExtractMeta(filePath string) (cwd, title string, lastTS int64) {
 			}
 		}
 	}
-	if aiTitle != "" {
+	if customTitle != "" {
+		title = customTitle
+	} else if agentName != "" {
+		title = agentName
+	} else if aiTitle != "" {
 		title = aiTitle
 	} else {
 		title = firstMsg

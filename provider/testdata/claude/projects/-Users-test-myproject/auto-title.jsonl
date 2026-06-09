@@ -1,0 +1,3 @@
+{"type":"attachment","timestamp":1700000000000,"cwd":"/Users/test/myproject","sessionId":"auto-title"}
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"help me migrate mysql data"}]},"timestamp":1700000001000,"cwd":"/Users/test/myproject","sessionId":"auto-title"}
+{"type":"ai-title","aiTitle":"MySQL 迁移到 CK","sessionId":"auto-title"}
