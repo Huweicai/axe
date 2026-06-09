@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/Huweicai/axe/state"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -66,8 +68,10 @@ func (m *Model) renderPreviewContent(width int) string {
 		if sel.Note != "" {
 			lines = append(lines, "", previewLabelStyle.Render("Note: ")+previewValueStyle.Render(sel.Note))
 		}
-		if sel.Done {
-			lines = append(lines, dimStyle.Render("  ✓ done"))
+		if sel.Deleted {
+			lines = append(lines, dimStyle.Render(fmt.Sprintf("  🗑 deleted · %dd left", trashDaysLeft(sel.DeletedAt))))
+		} else if sel.Archived {
+			lines = append(lines, dimStyle.Render("  ✓ archived"))
 		}
 
 		// Conversation snippets
@@ -99,6 +103,20 @@ func (m *Model) renderPreviewContent(width int) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// trashDaysLeft returns whole days remaining before a deleted session is purged
+// (7-day retention), rounded up; never negative.
+func trashDaysLeft(deletedAt int64) int {
+	if deletedAt == 0 {
+		return 0
+	}
+	expiry := time.Unix(deletedAt, 0).Add(state.TrashTTL)
+	left := time.Until(expiry)
+	if left <= 0 {
+		return 0
+	}
+	return int((left + 24*time.Hour - time.Nanosecond) / (24 * time.Hour))
 }
 
 func formatSize(bytes int64) string {
@@ -150,10 +168,10 @@ func (m *Model) renderStatusBar(width int) string {
 	items := []struct{ key, desc string }{
 		{"enter", "open"},
 		{"s", "star"},
-		{"d", "done"},
+		{"A", "arch"},
+		{"d", "del"},
+		{"u", "restore"},
 		{"/", "search"},
-		{"tab", "src"},
-		{"f", "dir"},
 		{"q", "quit"},
 	}
 	var parts []string
@@ -185,8 +203,13 @@ func (m *Model) sessionRowLayout(it ListItem, w int) rowLayout {
 
 	r := rowLayout{}
 	r.ind = " "
-	if it.Running {
+	switch {
+	case it.Running:
 		r.ind = "●"
+	case it.Deleted:
+		r.ind = "✗"
+	case it.Archived:
+		r.ind = "✓"
 	}
 	r.src = fmt.Sprintf("%-6s", it.Source())
 	if it.Starred {
@@ -258,8 +281,13 @@ func (m *Model) renderRowStyled(it ListItem, w int) string {
 			star = starStyle.Render("★") + " "
 		}
 		ind := " "
-		if it.Running {
+		switch {
+		case it.Running:
 			ind = runningStyle.Render("●")
+		case it.Deleted:
+			ind = dimStyle.Render("✗")
+		case it.Archived:
+			ind = dimStyle.Render("✓")
 		}
 
 		dir := dimStyle.Render(padToWidth(r.dirName, 12))

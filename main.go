@@ -26,11 +26,17 @@ func main() {
 		case "search":
 			cmdSearch(os.Args[2:])
 			return
-		case "done":
-			cmdDone(os.Args[2:])
+		case "archive", "done":
+			cmdArchive(os.Args[2:])
 			return
-		case "undone":
-			cmdUndone(os.Args[2:])
+		case "unarchive", "undone":
+			cmdUnarchive(os.Args[2:])
+			return
+		case "delete", "rm":
+			cmdDelete(os.Args[2:])
+			return
+		case "restore":
+			cmdRestore(os.Args[2:])
 			return
 		case "star":
 			cmdStar(os.Args[2:])
@@ -60,10 +66,12 @@ func cmdHelp() {
 
 Usage:
   axe                        Launch TUI (default)
-  axe ls [-a|--all]          List sessions
+  axe ls [-a|--all]          List sessions (-a includes archived + trash)
   axe search <keyword>       Deep search session content
-  axe done <id-prefix>       Mark session as done
-  axe undone <id-prefix>     Undo done mark
+  axe archive <id-prefix>    Archive session (hide, reversible)
+  axe unarchive <id-prefix>  Unarchive session
+  axe delete <id-prefix>     Soft-delete to trash (purged after 7 days)
+  axe restore <id-prefix>    Restore session from trash
   axe star <id-prefix>       Star (pin) session
   axe unstar <id-prefix>     Unstar session
   axe note <id-prefix> <txt> Add/replace note on session
@@ -72,9 +80,10 @@ Usage:
   axe help                   Show this help
 
 In TUI:
-  enter  open/resume    d  mark done     /  deep search
-  x      alt tool       u  undo done     tab  filter source
-  n      add note       s  star/unstar   ^a   show done
+  enter  open/resume    A  archive       ^a   show archived
+  x      alt tool       d  delete        ^t   show trash
+  n      add note       u  restore       /    deep search
+  s      star/unstar    f  dir filter    tab  filter source
   q      quit`)
 }
 
@@ -181,8 +190,9 @@ func cmdLs(args []string) {
 
 	for _, s := range sessions {
 		key := s.Source + ":" + s.ID
-		done := ctx.st.IsDone(key)
-		if done && !showAll {
+		archived := ctx.st.IsArchived(key)
+		deleted := ctx.st.IsDeleted(key)
+		if (archived || deleted) && !showAll {
 			continue
 		}
 		note := ctx.st.GetNote(key)
@@ -198,9 +208,12 @@ func cmdLs(args []string) {
 
 		starred := ctx.st.IsStarred(key)
 		mark := " "
-		if done {
+		switch {
+		case deleted:
+			mark = "✗"
+		case archived:
 			mark = "✓"
-		} else if starred {
+		case starred:
 			mark = "★"
 		}
 
@@ -266,52 +279,72 @@ func cmdSearch(args []string) {
 	}
 }
 
-func cmdDone(args []string) {
-	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: axe done <session-id-prefix>")
-		os.Exit(1)
-	}
-	ctx := loadContext()
-	s, err := findSession(ctx, args[0])
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	key := s.Source + ":" + s.ID
-	ctx.st.MarkDone(key)
-	if err := ctx.st.Save(); err != nil {
-		fmt.Fprintln(os.Stderr, "save error:", err)
-		os.Exit(1)
-	}
-	title := s.Title
+// shortTitle truncates a session title for one-line command output.
+func shortTitle(title string) string {
 	if len([]rune(title)) > 50 {
-		title = string([]rune(title)[:50]) + ".."
+		return string([]rune(title)[:50]) + ".."
 	}
-	fmt.Printf("Marked done: %s:%s  %s\n", s.Source, s.ID[:8], title)
+	return title
 }
 
-func cmdUndone(args []string) {
-	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: axe undone <session-id-prefix>")
-		os.Exit(1)
-	}
+// resolveAndSave looks up a session by prefix, runs mutate, and persists state.
+func resolveAndSave(usage, prefix string, mutate func(ctx *context, s *provider.Session, key string)) {
 	ctx := loadContext()
-	s, err := findSession(ctx, args[0])
+	s, err := findSession(ctx, prefix)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	key := s.Source + ":" + s.ID
-	ctx.st.UndoDone(key)
+	mutate(ctx, s, s.Source+":"+s.ID)
 	if err := ctx.st.Save(); err != nil {
 		fmt.Fprintln(os.Stderr, "save error:", err)
 		os.Exit(1)
 	}
-	title := s.Title
-	if len([]rune(title)) > 50 {
-		title = string([]rune(title)[:50]) + ".."
+}
+
+func cmdArchive(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: axe archive <session-id-prefix>")
+		os.Exit(1)
 	}
-	fmt.Printf("Unmarked done: %s:%s  %s\n", s.Source, s.ID[:8], title)
+	resolveAndSave("archive", args[0], func(ctx *context, s *provider.Session, key string) {
+		ctx.st.MarkArchived(key)
+		fmt.Printf("Archived: %s:%s  %s\n", s.Source, s.ID[:8], shortTitle(s.Title))
+	})
+}
+
+func cmdUnarchive(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: axe unarchive <session-id-prefix>")
+		os.Exit(1)
+	}
+	resolveAndSave("unarchive", args[0], func(ctx *context, s *provider.Session, key string) {
+		ctx.st.UnmarkArchived(key)
+		fmt.Printf("Unarchived: %s:%s  %s\n", s.Source, s.ID[:8], shortTitle(s.Title))
+	})
+}
+
+func cmdDelete(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: axe delete <session-id-prefix>")
+		os.Exit(1)
+	}
+	resolveAndSave("delete", args[0], func(ctx *context, s *provider.Session, key string) {
+		ctx.st.MarkDeleted(key, s.FilePath, time.Now())
+		fmt.Printf("Deleted (recoverable %dd): %s:%s  %s\n",
+			int(state.TrashTTL.Hours()/24), s.Source, s.ID[:8], shortTitle(s.Title))
+	})
+}
+
+func cmdRestore(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: axe restore <session-id-prefix>")
+		os.Exit(1)
+	}
+	resolveAndSave("restore", args[0], func(ctx *context, s *provider.Session, key string) {
+		ctx.st.Restore(key)
+		fmt.Printf("Restored: %s:%s  %s\n", s.Source, s.ID[:8], shortTitle(s.Title))
+	})
 }
 
 func cmdStar(args []string) {
@@ -443,6 +476,8 @@ func cmdTUI() {
 		os.Exit(1)
 	}
 
+	purgeExpiredTrash(ctx.st)
+
 	running := process.DetectRunning()
 
 	// Collect active session IDs from Claude provider
@@ -470,6 +505,22 @@ func cmdTUI() {
 			}
 		}
 	}
+}
+
+// purgeExpiredTrash drops recycle-bin entries past their retention window from
+// state (synchronously, so the run is consistent) and then removes the
+// underlying session files off the main path in the background.
+func purgeExpiredTrash(st *state.State) {
+	files := st.TakeExpiredDeletions(time.Now(), state.TrashTTL)
+	if len(files) == 0 {
+		return
+	}
+	_ = st.Save()
+	go func(fs []string) {
+		for _, f := range fs {
+			_ = os.Remove(f)
+		}
+	}(files)
 }
 
 func inferWorkspaces(providers []provider.Provider) []state.Workspace {

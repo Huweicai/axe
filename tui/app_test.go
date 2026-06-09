@@ -99,31 +99,58 @@ func TestModel_QueryFilter(t *testing.T) {
 	}
 }
 
-func TestModel_ToggleDone(t *testing.T) {
+func TestModel_Delete(t *testing.T) {
 	m := newTestModel()
 	initialCount := len(m.filtered)
 
 	// Move cursor to first session (index 1 = first session after workspace)
 	m.cursor = 1
 
-	// Press 'd' to mark done
+	// Press 'd' to soft-delete into the recycle bin
 	tm, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
 	m = tm.(Model)
 
 	if len(m.filtered) != initialCount-1 {
-		t.Fatalf("expected %d filtered after done, got %d", initialCount-1, len(m.filtered))
+		t.Fatalf("expected %d filtered after delete, got %d", initialCount-1, len(m.filtered))
 	}
 
-	// The done session should still exist in items
+	// The deleted session should still exist in items, flagged Deleted.
 	found := false
 	for _, it := range m.items {
-		if it.Done {
+		if it.Deleted {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Error("no item marked as done in items")
+		t.Error("no item marked as deleted in items")
+	}
+
+	// ^t reveals the recycle bin again.
+	tm, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlT})
+	m = tm.(Model)
+	if len(m.filtered) != initialCount {
+		t.Fatalf("expected %d filtered with trash shown, got %d", initialCount, len(m.filtered))
+	}
+}
+
+func TestModel_Archive(t *testing.T) {
+	m := newTestModel()
+	initialCount := len(m.filtered)
+	m.cursor = 1
+
+	// Shift+A archives the selected session (hidden by default).
+	tm, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'A'}})
+	m = tm.(Model)
+	if len(m.filtered) != initialCount-1 {
+		t.Fatalf("expected %d filtered after archive, got %d", initialCount-1, len(m.filtered))
+	}
+
+	// ^a reveals archived; 'u' on it restores.
+	tm, _ = m.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
+	m = tm.(Model)
+	if len(m.filtered) != initialCount {
+		t.Fatalf("expected %d filtered with archived shown, got %d", initialCount, len(m.filtered))
 	}
 }
 

@@ -3,21 +3,23 @@ package tui
 import "github.com/charmbracelet/bubbles/key"
 
 type keyMap struct {
-	Up         key.Binding
-	Down       key.Binding
-	Enter      key.Binding
-	AltEnter   key.Binding
-	Done       key.Binding
-	Undo       key.Binding
-	NoteEdit   key.Binding
-	Star       key.Binding
-	DeepSearch key.Binding
-	TabFilter  key.Binding
-	Group      key.Binding
-	ToggleDone key.Binding
-	Quit       key.Binding
-	Escape     key.Binding
-	Backspace  key.Binding
+	Up             key.Binding
+	Down           key.Binding
+	Enter          key.Binding
+	AltEnter       key.Binding
+	Delete         key.Binding
+	Archive        key.Binding
+	Undo           key.Binding
+	NoteEdit       key.Binding
+	Star           key.Binding
+	DeepSearch     key.Binding
+	TabFilter      key.Binding
+	Group          key.Binding
+	ToggleArchived key.Binding
+	ToggleTrash    key.Binding
+	Quit           key.Binding
+	Escape         key.Binding
+	Backspace      key.Binding
 }
 
 var keys = keyMap{
@@ -37,13 +39,17 @@ var keys = keyMap{
 		key.WithKeys("x"),
 		key.WithHelp("x", "alt tool"),
 	),
-	Done: key.NewBinding(
+	Delete: key.NewBinding(
 		key.WithKeys("d"),
-		key.WithHelp("d", "done"),
+		key.WithHelp("d", "delete"),
+	),
+	Archive: key.NewBinding(
+		key.WithKeys("A"),
+		key.WithHelp("A", "archive"),
 	),
 	Undo: key.NewBinding(
 		key.WithKeys("u"),
-		key.WithHelp("u", "undo"),
+		key.WithHelp("u", "restore"),
 	),
 	NoteEdit: key.NewBinding(
 		key.WithKeys("n"),
@@ -65,9 +71,13 @@ var keys = keyMap{
 		key.WithKeys("g"),
 		key.WithHelp("g", "group"),
 	),
-	ToggleDone: key.NewBinding(
+	ToggleArchived: key.NewBinding(
 		key.WithKeys("ctrl+a"),
-		key.WithHelp("^a", "show done"),
+		key.WithHelp("^a", "show archived"),
+	),
+	ToggleTrash: key.NewBinding(
+		key.WithKeys("ctrl+t"),
+		key.WithHelp("^t", "show trash"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("q"),

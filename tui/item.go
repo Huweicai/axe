@@ -22,7 +22,9 @@ type ListItem struct {
 	Alias        string // workspace alias (KindWorkspace only)
 	Path         string // workspace path or session directory
 	Session      *provider.Session
-	Done         bool
+	Archived     bool
+	Deleted      bool  // in recycle bin
+	DeletedAt    int64 // unix seconds when deleted (0 if not)
 	Note         string
 	Running      bool
 	Starred      bool

@@ -4,7 +4,12 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"time"
 )
+
+// TrashTTL is how long a soft-deleted session stays recoverable in the recycle
+// bin before its underlying file is purged from disk.
+const TrashTTL = 7 * 24 * time.Hour
 
 type Workspace struct {
 	Alias string `json:"alias"`
@@ -48,9 +53,15 @@ func (c *Config) DirAlias(path string) string {
 }
 
 type SessionState struct {
-	Done    bool   `json:"done,omitempty"`
-	Note    string `json:"note,omitempty"`
-	Starred bool   `json:"starred,omitempty"`
+	Archived    bool   `json:"archived,omitempty"`
+	DeletedAt   int64  `json:"deleted_at,omitempty"`   // unix seconds; 0 = not deleted (in recycle bin)
+	DeletedFile string `json:"deleted_file,omitempty"` // underlying session file to purge on expiry
+	Note        string `json:"note,omitempty"`
+	Starred     bool   `json:"starred,omitempty"`
+
+	// Done is the legacy pre-split field. It is loaded only to migrate old
+	// state into Archived (see LoadState) and is never written back.
+	Done bool `json:"done,omitempty"`
 }
 
 type State struct {
@@ -91,6 +102,13 @@ func LoadState(dir string) (*State, error) {
 	if s.Sessions == nil {
 		s.Sessions = make(map[string]*SessionState)
 	}
+	// Migrate legacy "done" → "archived".
+	for _, ss := range s.Sessions {
+		if ss.Done {
+			ss.Archived = true
+			ss.Done = false
+		}
+	}
 	return &s, nil
 }
 
@@ -114,19 +132,65 @@ func (s *State) getOrCreate(key string) *SessionState {
 	return ss
 }
 
-func (s *State) MarkDone(key string) {
-	s.getOrCreate(key).Done = true
+func (s *State) MarkArchived(key string) {
+	s.getOrCreate(key).Archived = true
 }
 
-func (s *State) UndoDone(key string) {
-	s.getOrCreate(key).Done = false
+func (s *State) UnmarkArchived(key string) {
+	s.getOrCreate(key).Archived = false
 }
 
-func (s *State) IsDone(key string) bool {
+func (s *State) IsArchived(key string) bool {
 	if ss, ok := s.Sessions[key]; ok {
-		return ss.Done
+		return ss.Archived
 	}
 	return false
+}
+
+// MarkDeleted soft-deletes a session into the recycle bin, recording when and
+// which underlying file to purge once the retention window passes.
+func (s *State) MarkDeleted(key, file string, now time.Time) {
+	ss := s.getOrCreate(key)
+	ss.DeletedAt = now.Unix()
+	ss.DeletedFile = file
+}
+
+// Restore takes a session back out of the recycle bin.
+func (s *State) Restore(key string) {
+	if ss, ok := s.Sessions[key]; ok {
+		ss.DeletedAt = 0
+		ss.DeletedFile = ""
+	}
+}
+
+func (s *State) IsDeleted(key string) bool {
+	if ss, ok := s.Sessions[key]; ok {
+		return ss.DeletedAt > 0
+	}
+	return false
+}
+
+func (s *State) DeletedAt(key string) int64 {
+	if ss, ok := s.Sessions[key]; ok {
+		return ss.DeletedAt
+	}
+	return 0
+}
+
+// TakeExpiredDeletions removes state entries whose deletion is older than ttl
+// and returns the underlying session files that should be purged from disk.
+func (s *State) TakeExpiredDeletions(now time.Time, ttl time.Duration) []string {
+	cutoff := now.Add(-ttl).Unix()
+	var files []string
+	for k, ss := range s.Sessions {
+		if ss.DeletedAt > 0 && ss.DeletedAt <= cutoff {
+			if ss.DeletedFile != "" {
+				files = append(files, ss.DeletedFile)
+			}
+			delete(s.Sessions, k)
+		}
+	}
+	return files
 }
 
 func (s *State) SetNote(key, note string) {

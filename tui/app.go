@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/Huweicai/axe/provider"
 	"github.com/Huweicai/axe/state"
@@ -35,26 +36,27 @@ func (f sourceFilter) String() string {
 
 // Model is the top-level Bubbletea model for axe.
 type Model struct {
-	items     []ListItem
-	filtered  []int // indices into items
-	cursor    int
-	query     string
-	width     int
-	height    int
-	filter    sourceFilter
-	dirFilter string // when set, only show sessions in this directory
-	showDone  bool
-	grouped   bool
-	deepMode  bool
-	noteInput bool
-	noteText  string
-	providers []provider.Provider
-	state     *state.State
-	config    *state.Config
-	running   map[string]bool
-	activeIDs map[string]string // sessionID → status (from Claude sessions/*.json)
-	execArgs  []string          // set before quitting to exec after tea exits
-	execDir   string            // chdir here before exec
+	items        []ListItem
+	filtered     []int // indices into items
+	cursor       int
+	query        string
+	width        int
+	height       int
+	filter       sourceFilter
+	dirFilter    string // when set, only show sessions in this directory
+	showArchived bool
+	showTrash    bool // reveal recycle-bin (deleted) sessions
+	grouped      bool
+	deepMode     bool
+	noteInput    bool
+	noteText     string
+	providers    []provider.Provider
+	state        *state.State
+	config       *state.Config
+	running      map[string]bool
+	activeIDs    map[string]string // sessionID → status (from Claude sessions/*.json)
+	execArgs     []string          // set before quitting to exec after tea exits
+	execDir      string            // chdir here before exec
 
 	// Preview snippet cache
 	previewSnippets  []provider.Snippet
@@ -78,9 +80,9 @@ func New(providers []provider.Provider, cfg *state.Config, st *state.State, runn
 	return m
 }
 
-// SetShowDone toggles the --all flag for showing done sessions.
-func (m *Model) SetShowDone(v bool) {
-	m.showDone = v
+// SetShowArchived toggles whether archived sessions are listed.
+func (m *Model) SetShowArchived(v bool) {
+	m.showArchived = v
 	m.applyFilter()
 }
 
@@ -237,8 +239,13 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.applyFilter()
 		return m, nil
 
-	case key.Matches(msg, keys.ToggleDone):
-		m.showDone = !m.showDone
+	case key.Matches(msg, keys.ToggleArchived):
+		m.showArchived = !m.showArchived
+		m.applyFilter()
+		return m, nil
+
+	case key.Matches(msg, keys.ToggleTrash):
+		m.showTrash = !m.showTrash
 		m.applyFilter()
 		return m, nil
 	}
@@ -254,10 +261,13 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			case 'x':
 				return m.execSelected(true)
 			case 'd':
-				m.markDone()
+				m.deleteSelected()
+				return m, nil
+			case 'A':
+				m.archiveSelected()
 				return m, nil
 			case 'u':
-				m.undoDone()
+				m.restoreSelected()
 				return m, nil
 			case 's':
 				m.toggleStar()
@@ -333,13 +343,15 @@ func (m *Model) loadItems() {
 			s := &sessions[i]
 			sk := s.Source + ":" + s.ID
 			li := ListItem{
-				Kind:    KindSession,
-				Path:    s.Directory,
-				Session: s,
-				Done:    m.state.IsDone(sk),
-				Note:    m.state.GetNote(sk),
-				Starred: m.state.IsStarred(sk),
-				Running: m.running[s.Directory],
+				Kind:      KindSession,
+				Path:      s.Directory,
+				Session:   s,
+				Archived:  m.state.IsArchived(sk),
+				Deleted:   m.state.IsDeleted(sk),
+				DeletedAt: m.state.DeletedAt(sk),
+				Note:      m.state.GetNote(sk),
+				Starred:   m.state.IsStarred(sk),
+				Running:   m.running[s.Directory],
 			}
 			// Set active status from Claude sessions metadata
 			if status, ok := m.activeIDs[s.ID]; ok {
@@ -385,8 +397,12 @@ func (m *Model) applyFilter() {
 		if m.dirFilter != "" && it.Path != m.dirFilter {
 			continue
 		}
-		// done filter
-		if !m.showDone && it.Done {
+		// recycle-bin / archive filter (deleted takes precedence)
+		if it.Deleted {
+			if !m.showTrash {
+				continue
+			}
+		} else if it.Archived && !m.showArchived {
 			continue
 		}
 		// query filter
@@ -409,26 +425,49 @@ func (m *Model) selected() *ListItem {
 	return &m.items[m.filtered[m.cursor]]
 }
 
-// markDone marks the selected session as done.
-func (m *Model) markDone() {
+// deleteSelected soft-deletes the selected session into the recycle bin.
+func (m *Model) deleteSelected() {
 	sel := m.selected()
-	if sel == nil || sel.Kind != KindSession {
+	if sel == nil || sel.Kind != KindSession || sel.Session == nil {
 		return
 	}
-	m.state.MarkDone(sel.StateKey())
-	sel.Done = true
+	now := time.Now()
+	m.state.MarkDeleted(sel.StateKey(), sel.Session.FilePath, now)
+	sel.Deleted = true
+	sel.DeletedAt = now.Unix()
 	_ = m.state.Save()
 	m.applyFilter()
 }
 
-// undoDone clears done status on the selected session.
-func (m *Model) undoDone() {
+// archiveSelected archives the selected session (hidden, reversible).
+func (m *Model) archiveSelected() {
 	sel := m.selected()
 	if sel == nil || sel.Kind != KindSession {
 		return
 	}
-	m.state.UndoDone(sel.StateKey())
-	sel.Done = false
+	m.state.MarkArchived(sel.StateKey())
+	sel.Archived = true
+	_ = m.state.Save()
+	m.applyFilter()
+}
+
+// restoreSelected un-deletes (or un-archives) the selected session.
+func (m *Model) restoreSelected() {
+	sel := m.selected()
+	if sel == nil || sel.Kind != KindSession {
+		return
+	}
+	switch {
+	case sel.Deleted:
+		m.state.Restore(sel.StateKey())
+		sel.Deleted = false
+		sel.DeletedAt = 0
+	case sel.Archived:
+		m.state.UnmarkArchived(sel.StateKey())
+		sel.Archived = false
+	default:
+		return
+	}
 	_ = m.state.Save()
 	m.applyFilter()
 }
