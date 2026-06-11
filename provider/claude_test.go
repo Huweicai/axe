@@ -43,11 +43,11 @@ func TestClaudeProvider_ListSessions(t *testing.T) {
 		t.Errorf("Title: got %q, want %q", s.Title, "Help me refactor the auth module")
 	}
 
-	if got := byID["custom-title"].Title; got != "东证白云机器对时比较性能" {
-		t.Errorf("custom-title Title: got %q, want %q", got, "东证白云机器对时比较性能")
+	if got := byID["custom-title"].Title; got != "Dongzheng Baiyun machine clock sync performance" {
+		t.Errorf("custom-title Title: got %q, want %q", got, "Dongzheng Baiyun machine clock sync performance")
 	}
-	if got := byID["auto-title"].Title; got != "MySQL 迁移到 CK" {
-		t.Errorf("auto-title Title: got %q, want %q", got, "MySQL 迁移到 CK")
+	if got := byID["auto-title"].Title; got != "Migrate MySQL to ClickHouse" {
+		t.Errorf("auto-title Title: got %q, want %q", got, "Migrate MySQL to ClickHouse")
 	}
 }
 

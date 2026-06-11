@@ -25,8 +25,8 @@ func TestCodexProvider_ListSessions(t *testing.T) {
 	if found.Source != "codex" {
 		t.Errorf("Source: got %q, want %q", found.Source, "codex")
 	}
-	if found.Title != "优化下单链路 cache" {
-		t.Errorf("Title: got %q, want %q", found.Title, "优化下单链路 cache")
+	if found.Title != "Optimize order path cache" {
+		t.Errorf("Title: got %q, want %q", found.Title, "Optimize order path cache")
 	}
 	if found.Directory != "/Users/test/spectra" {
 		t.Errorf("Directory: got %q, want %q", found.Directory, "/Users/test/spectra")

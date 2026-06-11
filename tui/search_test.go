@@ -55,7 +55,7 @@ func TestDeepSearch_MultipleProviders(t *testing.T) {
 	cp := provider.NewClaudeProvider(claudeDir)
 	xp := provider.NewCodexProvider(codexDir)
 
-	// "cache" appears in codex testdata ("优化下单链路的 cache miss")
+	// "cache" appears in codex testdata.
 	results := DeepSearch([]provider.Provider{cp, xp}, "cache", time.Time{})
 
 	if len(results) == 0 {

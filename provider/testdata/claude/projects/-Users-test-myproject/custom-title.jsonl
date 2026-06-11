@@ -1,5 +1,5 @@
 {"type":"attachment","timestamp":1700000000000,"cwd":"/Users/test/myproject","sessionId":"custom-title"}
 {"type":"user","message":{"role":"user","content":[{"type":"text","text":"compare machine clock sync performance"}]},"timestamp":1700000001000,"cwd":"/Users/test/myproject","sessionId":"custom-title"}
 {"type":"ai-title","aiTitle":"Compare timing performance on Dongzheng Baiyun machine","sessionId":"custom-title"}
-{"type":"custom-title","customTitle":"东证白云机器对时比较性能","sessionId":"custom-title"}
-{"type":"agent-name","agentName":"东证白云机器对时比较性能","sessionId":"custom-title"}
+{"type":"custom-title","customTitle":"Dongzheng Baiyun machine clock sync performance","sessionId":"custom-title"}
+{"type":"agent-name","agentName":"Dongzheng Baiyun machine clock sync performance","sessionId":"custom-title"}
